@@ -1,1 +1,1 @@
-# DODL: DIgital Optimisation of Diffusible Logic
+# DODL: Digital Optimisation of Diffusible Logic
