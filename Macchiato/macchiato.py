@@ -275,7 +275,7 @@ def get_logic_gates(activations):
 
     for key in keys:
         if key in ['BP', 'IB']:
-            logic_gate = np.zeros((8, 1))
+            logic_gate = np.zeros((8))
 
             for input_state in activations[key][0][0]:
                 logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
@@ -297,16 +297,12 @@ def get_logic_gates(activations):
                 logic_gate[inputs_table.tolist().index(input_state)] = key == 'TH'
 
         try:
-            logic_gates[key].append(logic_gate.tolist()) #could be mu;tiple bandpasses
+            logic_gates[key].append(logic_gate.T.tolist()) #could be mu;tiple bandpasses
         except:
             logic_gates[key] = []
-            logic_gates[key].append(logic_gate.tolist())
+            logic_gates[key].append(logic_gate.T.tolist())
 
     return logic_gates
-
-
-
-
 
 def covers_from_blocks(blocks):
     # returns the start position and size of each cover
