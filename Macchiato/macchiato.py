@@ -172,7 +172,8 @@ def graph_search(truth_table, target_n_nodes = -1):
 
     return best_table, discovered_tables
 
-def get_activations(best_table, n_inputs, allowed_acts = ['TH', 'IT', 'BP', 'IB']):
+def get_activations(best_table, allowed_acts = ['TH', 'IT', 'BP', 'IB']):
+    n_inputs = int(np.log2(len(best_table)))
 
     blocks = get_blocks(best_table)[0]
 
@@ -257,6 +258,54 @@ def get_activations(best_table, n_inputs, allowed_acts = ['TH', 'IT', 'BP', 'IB'
 
 
     return activations
+
+def get_logic_gates(activations):
+    '''
+    gets the logic gates that are implemented by each colony and returns those output mappings
+    :param activations:
+    :return:
+    '''
+
+    logic_gates = {}
+
+    keys = list(activations.keys())
+    n_inputs = len(activations[keys[0]][0][0])
+
+    inputs_table = create_truth_table(np.array([0] * 2**n_inputs))[:, 0:n_inputs]
+
+    for key in keys:
+        if key in ['BP', 'IB']:
+            logic_gate = np.zeros((8, 1))
+
+            for input_state in activations[key][0][0]:
+                logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
+
+            for input_state in activations[key][0][1]:
+                logic_gate[inputs_table.tolist().index(input_state)] = key == 'BP'
+
+            for input_state in activations[key][0][2]:
+                logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
+
+        elif key in ['TH', 'IT']:
+
+            logic_gate = np.zeros((8, 1))
+
+            for input_state in activations[key][0][0]:
+                logic_gate[inputs_table.tolist().index(input_state)] = key == 'IT'
+
+            for input_state in activations[key][0][1]:
+                logic_gate[inputs_table.tolist().index(input_state)] = key == 'TH'
+
+        try:
+            logic_gates[key].append(logic_gate.tolist()) #could be mu;tiple bandpasses
+        except:
+            logic_gates[key] = []
+            logic_gates[key].append(logic_gate.tolist())
+
+    return logic_gates
+
+
+
 
 
 def covers_from_blocks(blocks):
@@ -520,6 +569,8 @@ def macchiato(outputs):
     return current_table
 
 
+
+
 parser = argparse.ArgumentParser(description='Run the Macchiato algorithm')
 parser.add_argument('outputs', metavar='T', type=str, nargs=1, help='the output of the truth table to be encoded')
 parser.add_argument('--outpath', type=str, help='the filepath to save output in, default is Macchiato/output')
@@ -556,10 +607,11 @@ if __name__ == '__main__':
     best_table = macchiato(outputs)
     print('Simplified truth table: ')
     print(best_table)
+
     print()
 
-    colonies = get_activations(best_table, n_inputs)
-
+    colonies = get_activations(best_table)
+    print(colonies)
     print('Colony mapping: ')
     new_colonies = {}
     for act in colonies.keys():
@@ -575,10 +627,16 @@ if __name__ == '__main__':
         new_colonies[act] = new_activations
     print()
 
+    print('Logic gates:')
+    logic_gates = get_logic_gates(colonies)
+    for act in logic_gates.keys():
+        print(act)
+        for lg in logic_gates[act]:
+            print(lg)
+    print()
 
-    results_dict = {'truth_table': truth_table.tolist(), 'simplified_table': best_table.tolist(), 'colonies': colonies}
 
-
+    results_dict = {'truth_table': truth_table.tolist(), 'simplified_table': best_table.tolist(), 'colonies': colonies, 'logic_gates': logic_gates}
 
     json.dump(results_dict, open(os.path.join(out_path,'{}.json'.format(sys.argv[1])), 'w+'))
 
