@@ -7,6 +7,7 @@ import json
 import numpy as np
 import itertools
 import math
+from PIL import Image, ImageDraw
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -134,7 +135,7 @@ def draw_wells(plate_draw, wells, colour, scale):
         plate_draw.rectangle(((x * scale +scale/10, y * scale +scale/10), ((x + 1) * scale-scale/10, (y + 1) * scale-scale/10)),
                        fill=colour, outline=(0, 0, 0), width=2)
 
-def draw_plates(plates):
+def draw_plates(plates, out_dir):
     scale = 20
     for p,plate in enumerate(plates):
         im = draw_blank_plate(scale)
@@ -146,12 +147,13 @@ def draw_plates(plates):
 
 
 
-        im.save('plate{}.png'.format(p))
+        im.save(os.path.join(out_dir, 'plate{}.png'.format(p)))
 
 
-parser = argparse.ArgumentParser(description='Run the Macchiato algorithm')
+parser = argparse.ArgumentParser(description='Produce plate configurations for the opentron from colony placements ')
 parser.add_argument('--in_file',  type=str, help='the input data from colony_placement, default is colony_placement/output/placement.json')
 parser.add_argument('--out_file', type=str, help='the filepath to save output in, default is opentron/output/plate_config.json')
+parser.add_argument('--plot', type=str, help='1 to plot plates, 0 to not')
 if __name__ == '__main__':
     args = parser.parse_args()
 
@@ -159,10 +161,15 @@ if __name__ == '__main__':
     out_file = args.out_file
 
     if out_file is None:
-        out_file = os.path.join(os.path.join(dir_path, 'output'), 'plate_config.json')
+        out_file = os.path.join(dir_path, 'output')
 
     if in_file is None:
         in_file = os.path.join(os.path.join(os.path.join(os.path.dirname(dir_path), 'colony_placement'), 'output'), 'placement.json')
+
+    os.makedirs(out_file, exist_ok=True)
+
+    out_file = os.path.join(out_file, 'plate_config.json')
+
 
 
     data = json.load(open(in_file))
@@ -174,3 +181,8 @@ if __name__ == '__main__':
     wells = get_wells(receiver_inds, IPTG_inds, activations)
     print(wells)
     plates = get_plates(wells)
+
+    if args.plot:
+        draw_plates(plates, os.path.join(dir_path, 'output'))
+
+    json.dump(plates, open(out_file, 'w+'))

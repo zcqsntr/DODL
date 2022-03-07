@@ -20,6 +20,6 @@ optional arguments:
 ### Examples
 
 ```
-./macchiato.py 00011010
-./macchiato.py 00011010 --outpath /Users/neythen/Desktop/Projects/DODL/Macchiato/test
+python macchiato.py 00011010
+python macchiato.py 00011010 --outpath /Users/neythen/Desktop/Projects/DODL/Macchiato/test
 ```

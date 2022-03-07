@@ -1,5 +1,5 @@
 import json
-
+import os
 metadata = {'apiLevel': '2.0'}
 
 def pipette(plates, typ, liq, pip):
@@ -35,7 +35,7 @@ def pipette(plates, typ, liq, pip):
 
 def run(protocol):
 
-    plates = json.load(open('plate_config.json'))
+    plates = json.load(open(os.path.join('output', 'plate_config.json')))
     deep96 = protocol.load_labware('nest_96_wellplate_2ml_deep', '4')
 
     tip10 = protocol.load_labware('opentrons_96_filtertiprack_10ul', '1')
