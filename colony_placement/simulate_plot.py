@@ -66,14 +66,19 @@ if __name__ == '__main__':
     simulator = DigitalSimulator(conc, environment_size, w, dt, laplace=laplace)
     simulator.bound = bound
 
+    activations = data['activations']
+    logic_gates = data['logic_gates'] # BP, TH, multiplexer
+    ind0, ind1, ind2 = np.array(data['IPTG_inds'])
+
 
     #score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords,thresholds,logic_gates, activations,test_t=-1, plot = False)
 
 
 
     receiver_radius = 2
+    start_coords = np.array([[2, 7]])
     ISs = ['000', '001', '010', '011', '100', '101', '110', '111']
-    for i, rec_ind in enumerate(rec_inds):
+    for i, rec_ind in enumerate(data['receiver_inds']):
         rec_coords = start_coords + rec_ind * points_per_well
         #receiver_coords = get_node_coordinates(rec_coords, receiver_radius, environment_size[0],environment_size[1], w)
         #receiver_coords = [receiver_coords] * len(activations)

@@ -198,7 +198,7 @@ if __name__ == '__main__':
     print(IPTG_inds)
 
 
-    save_data = {'receiver_inds': receiver_inds.tolist(), 'IPTG_inds': IPTG_inds.tolist(), 'activations': activations}
+    save_data = {'receiver_inds': receiver_inds.tolist(), 'IPTG_inds': IPTG_inds.tolist(), 'activations': activations, 'logic_gates': logic_gates}
 
     json.dump(save_data, open(os.path.join(out_path, 'placement.json'), 'w+'))
 

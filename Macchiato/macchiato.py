@@ -269,7 +269,9 @@ def get_logic_gates(activations):
     logic_gates = {}
 
     keys = list(activations.keys())
-    n_inputs = len(activations[keys[0]][0][0])
+    n_inputs = len(activations[keys[0]][0][0][0])
+
+
 
     inputs_table = create_truth_table(np.array([0] * 2**n_inputs))[:, 0:n_inputs]
 
@@ -629,7 +631,7 @@ if __name__ == '__main__':
         print(act)
         for lg in logic_gates[act]:
             print(lg)
-    print()
+    print(logic_gates)
 
 
     results_dict = {'truth_table': truth_table.tolist(), 'simplified_table': best_table.tolist(), 'colonies': colonies, 'logic_gates': logic_gates}
