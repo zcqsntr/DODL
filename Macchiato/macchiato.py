@@ -93,6 +93,7 @@ def simplify(state_mapping, n_inputs):
         #build reduced state mapping
         for s in range(len(state_mapping)):
             states = copy.deepcopy(state_mapping[s])
+            print('r', redenduant_inputs)
             states[:, redenduant_inputs] = -1  # remove one input and test for degeneracy
 
             distinct_states = map(tuple, states)
@@ -573,6 +574,7 @@ parser = argparse.ArgumentParser(description='Run the Macchiato algorithm')
 parser.add_argument('outputs', metavar='T', type=str, nargs=1, help='the output of the truth table to be encoded')
 parser.add_argument('--outpath', type=str, help='the filepath to save output in, default is Macchiato/output')
 
+# TODO:: add activation function choice as input
 if __name__ == '__main__':
     args = parser.parse_args()
 
@@ -617,10 +619,10 @@ if __name__ == '__main__':
         for state_mapping in colonies[act]:
 
 
-            simplified_state_mapping = simplify(state_mapping, n_inputs)
-            new_activations.append(simplified_state_mapping)
+            #simplified_state_mapping = simplify(state_mapping, n_inputs)
+            new_activations.append(state_mapping)
             print(act)
-            for s in simplified_state_mapping:
+            for s in state_mapping:
                 print(s)
         new_colonies[act] = new_activations
     print()

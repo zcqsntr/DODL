@@ -15,4 +15,5 @@ optional arguments:
 ### Examples 
 ```
 python design_logic_gates.py /home/neythen/Desktop/Projects/DODL/Macchiato/output/00011011.json
+python simulate_plot.py /Users/neythen/Desktop/Projects/DODL/colony_placement/output/placement.json
 ```
