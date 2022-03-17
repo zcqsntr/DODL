@@ -35,9 +35,35 @@ def get_blocks(truth_table):
 
     return np.vstack((blocks, block_sizes)).T, n_ones
 
+
+
 def check_constraints(lower, upper):
     #checks whther putting lower and upper in this order is valid
     return np.sum(lower*upper) < np.sum(upper)
+
+def get_conflicting_constraints(truth_table):
+    inputs = truth_table[1:-1, :-1] # we can ignore the 000 and 111 ends
+
+
+    relations = []
+    count = 0
+    for i in range(len(inputs)):
+        for j in range(i+1, len(inputs)):
+            AND = inputs[i, :] * inputs[j,:]
+            if np.sum(inputs[i, :]-AND) != 0:
+                relations.append([inputs[i, :]-AND, inputs[j,:] -AND])
+                count += 1
+
+    violated = []
+    for i in range(len(relations)):
+        for j in range(len(relations)):
+            r = relations[i]
+            r2 = relations[j]
+            if np.all(r[0] == r2[1]) and np.all(r2[0] == r[1]):
+
+                violated.append([r, r2])
+
+    return violated
 
 def create_truth_table(outputs):
     # create inputs table
@@ -93,7 +119,7 @@ def simplify(state_mapping, n_inputs):
         #build reduced state mapping
         for s in range(len(state_mapping)):
             states = copy.deepcopy(state_mapping[s])
-            print('r', redenduant_inputs)
+
             states[:, redenduant_inputs] = -1  # remove one input and test for degeneracy
 
             distinct_states = map(tuple, states)
@@ -277,33 +303,35 @@ def get_logic_gates(activations):
     inputs_table = create_truth_table(np.array([0] * 2**n_inputs))[:, 0:n_inputs]
 
     for key in keys:
-        if key in ['BP', 'IB']:
-            logic_gate = np.zeros((8))
 
-            for input_state in activations[key][0][0]:
-                logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
+        for i in range(len(activations[key])):
+            logic_gate = np.zeros((2 ** n_inputs))
+            if key in ['BP', 'IB']:
 
-            for input_state in activations[key][0][1]:
-                logic_gate[inputs_table.tolist().index(input_state)] = key == 'BP'
 
-            for input_state in activations[key][0][2]:
-                logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
+                for input_state in activations[key][i][0]:
+                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
 
-        elif key in ['TH', 'IT']:
+                for input_state in activations[key][i][1]:
+                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'BP'
 
-            logic_gate = np.zeros((8, 1))
+                for input_state in activations[key][i][2]:
+                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
 
-            for input_state in activations[key][0][0]:
-                logic_gate[inputs_table.tolist().index(input_state)] = key == 'IT'
+            elif key in ['TH', 'IT']:
 
-            for input_state in activations[key][0][1]:
-                logic_gate[inputs_table.tolist().index(input_state)] = key == 'TH'
+                for input_state in activations[key][0][0]:
+                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'IT'
 
-        try:
-            logic_gates[key].append(logic_gate.T.tolist()) #could be mu;tiple bandpasses
-        except:
-            logic_gates[key] = []
-            logic_gates[key].append(logic_gate.T.tolist())
+                for input_state in activations[key][0][1]:
+                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'TH'
+
+            try:
+                logic_gates[key].append(logic_gate.T.tolist()) #could be multiple bandpasses
+            except Exception as e:
+                logic_gates[key] = []
+                logic_gates[key].append(logic_gate.T.tolist())
+
 
     return logic_gates
 
@@ -332,11 +360,17 @@ def can_move(truth_table, frm, to):
         for i in range(to, frm):
             can_swap = can_swap and check_constraints(truth_table[frm, :-1], truth_table[i, :-1])
 
+    if can_swap: # now check new table doesnt violated any higher order constraints
+        test = move(truth_table, frm, to)
+        conflicts = get_conflicting_constraints(test)
+        #can_swap = can_swap and len(conflicts) == 0
+
+
     return can_swap
 
 
 def move(truth_table, frm, to):
-    # moves a state from a to b by movin gthe states and shifting all states between a and b down or up one as required
+    # moves a state from a to b by moving the states and shifting all states between a and b down or up one as required
 
     new_table = copy.deepcopy(truth_table)
 
@@ -418,35 +452,26 @@ def count_output_blocks(output_blocks):
 
     return n_blocks
 
-
-def rough_optimisation(truth_table):
-    '''
-    optimises based on matching he 0s and ones between the different numbers of inputs, gives a really good starting point
-    for earl grey to do the final bit of opt
-    '''
+def group_inputs(truth_table):
     n_inputs = int(np.log2(truth_table.shape[0]))
-
-
-    truth_table = sort_truth_table(truth_table)
-
-    # split into groups based on how many inputs are activated
-
+    # split into groups based on how many inputs are activateds
     input_groups = []
     counter = 0
-    for i in range(n_inputs+1):
-        n_states = int(math.factorial(n_inputs)/(math.factorial(i)*math.factorial(n_inputs-i)))
-        group = truth_table[counter:counter+n_states ]
-        sorted_group = group[np.argsort([group[:, -1]])]
-        input_groups.append(sorted_group[0])
+    for i in range(n_inputs + 1):
+        n_states = int(math.factorial(n_inputs) / (math.factorial(i) * math.factorial(n_inputs - i)))
+        group = truth_table[counter:counter + n_states]
+        #sorted_group = group[np.argsort([group[:, -1]])]
+        input_groups.append(group)
         counter += n_states
+    return input_groups
 
-
+def get_possible_flips(input_groups):
     output_blocks = []
-    flips = [] # whether or not each input group has been flipped
-    flippable = [] #which input groups have 0s and 1s and therofore can be flipped
-    for i,group in enumerate(input_groups):
+    flips = []  # whether or not each input group has been flipped
+    flippable = []  # which input groups have 0s and 1s and therofore can be flipped
+    for i, group in enumerate(input_groups):
 
-        active_outputs = np.sum(group[:,-1])
+        active_outputs = np.sum(group[:, -1])
 
         if active_outputs == 0:
             output_blocks.append([0])
@@ -454,13 +479,16 @@ def rough_optimisation(truth_table):
             output_blocks.append([1])
         else:
             flips.append(False)
-            output_blocks.append([0,1])
+            output_blocks.append([0, 1])
             flippable.append(i)
+    return output_blocks, flips, flippable
 
+
+def find_best_flips(input_groups, output_blocks, flips, flippable):
     # no go through each flip combination and find the one with the smallest number of blocks
 
     min_blocks = count_output_blocks(output_blocks)
-    best_blocks = copy.deepcopy(output_blocks)
+
     best_flip_comb = flips
 
     flip_combs = list(itertools.product([False, True], repeat=len(flippable)))
@@ -468,39 +496,63 @@ def rough_optimisation(truth_table):
     for flip_comb in flip_combs:
         for i, flip in enumerate(flip_comb):
             if flip:
-                output_blocks[flippable[i]] = [1,0]
+                output_blocks[flippable[i]] = [1, 0]
             else:
-                output_blocks[flippable[i]] = [0,1]
+                output_blocks[flippable[i]] = [0, 1]
 
         n_blocks = count_output_blocks(output_blocks)
-        if n_blocks < min_blocks:
 
-            best_blocks = copy.deepcopy(output_blocks)
+        new_table = flip_table(input_groups, flip_comb, flippable)
+
+        if n_blocks < min_blocks and len(get_conflicting_constraints(new_table)) == 0:  # and no contraints violated
+
             best_flip_comb = list(copy.deepcopy(flip_comb))
             min_blocks = n_blocks
 
+    return best_flip_comb, min_blocks
 
+def flip_table(input_groups, best_flip_comb, flippable):
     # assemble the new truth table base don which input groups are flipped
-
     new_input_groups = copy.deepcopy(input_groups)
 
     for i, ind in enumerate(flippable):
         if best_flip_comb[i]:
-            new_input_groups[ind] = np.flip(new_input_groups[ind], axis = 0)
+            new_input_groups[ind] = np.flip(new_input_groups[ind], axis=0)
+    new_table = np.vstack(new_input_groups)
 
-    return np.vstack(new_input_groups), min_blocks
+    return new_table
+
+def rough_optimisation(truth_table):
+    '''
+    optimises based on matching the 0s and ones between the different numbers of inputs, gives a really good starting point
+    for earl grey to do the final bit of opt
+    '''
+
+    truth_table = sort_truth_table(truth_table)
+
+
+    input_groups = group_inputs(truth_table)
+
+
+    output_blocks, flips, flippable = get_possible_flips(input_groups)
+
+    best_flip_comb, min_blocks = find_best_flips(input_groups, output_blocks, flips, flippable)
+
+    new_table = flip_table(input_groups, best_flip_comb, flippable)
+
+    if len(get_conflicting_constraints(truth_table)) > 0:
+        print('CONFLICTS')
+    return new_table, min_blocks
 
 def macchiato(outputs):
-    n_inputs = int(np.log2(outputs.size))
     truth_table = create_truth_table(outputs)
-    truth_table,_ = rough_optimisation(truth_table)
+    truth_table, _ = rough_optimisation(truth_table)
 
-    current_table = copy.deepcopy(truth_table)
+
+
     current_table = truth_table
 
-    will_exit = True
-
-
+    best_table = copy.deepcopy(current_table)
     finished = False
 
     while not finished:
@@ -513,9 +565,6 @@ def macchiato(outputs):
         # each block of ones is a cover, try and maximise each cover in turn, starting from largest cover
         cov_sort = np.argsort(covers[:, 1])  # this will bias towards states in the middle, probably not what we want
 
-
-        test_table = copy.deepcopy(current_table)
-
         for index in cov_sort:
             # get smallest cover
             smallest_cover = covers[index]
@@ -523,11 +572,7 @@ def macchiato(outputs):
 
             small_start = smallest_cover[0]
             small_end = smallest_cover[0] + smallest_cover[1]
-
-
             # try and eliminate smallest cover by puttin gones into the covers on either side
-
-
             if index > 0:
                 lower_cover = covers[index -1]
             else:
@@ -540,10 +585,9 @@ def macchiato(outputs):
 
             test_table = copy.deepcopy(current_table)
 
-
             if lower_cover is not None:
 
-                # go through oes and put as many into the lower cover as possible
+                # go through oes and put as many into the lower block as possible
                 for i, state in enumerate(range(small_start, small_end)):
 
                     if can_move(test_table, state, lower_cover[0] + lower_cover[1] + i):
@@ -555,6 +599,7 @@ def macchiato(outputs):
             small_end = smallest_cover[0] + smallest_cover[1]
 
             if higher_cover is not None:
+                # go through oes and put as many into the upper block as possible
                 for i, state in enumerate(range(small_start, small_end)[::-1]):
                     if can_move(test_table, state, higher_cover[0] - i - 1):
                         test_table = move(test_table, state, higher_cover[0] - i - 1)
@@ -563,9 +608,12 @@ def macchiato(outputs):
             if smallest_cover[1] == 0:
                 current_table = test_table
                 finished = False
+                if len(get_conflicting_constraints(current_table)) == 0:
+                    best_table = copy.deepcopy(current_table)
                 break
-
-    return current_table
+    if len(get_conflicting_constraints(best_table))>0:
+        print(1)
+    return best_table
 
 
 
@@ -605,10 +653,14 @@ if __name__ == '__main__':
     n_inputs = int(np.log2(outputs.size))
 
     best_table = macchiato(outputs)
+    #best_table = create_truth_table(outputs)
+
     print('Simplified truth table: ')
     print(best_table)
 
     print()
+
+
 
     colonies = get_activations(best_table)
     print(colonies)
