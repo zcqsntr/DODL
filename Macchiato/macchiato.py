@@ -14,6 +14,7 @@ import argparse
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 def get_blocks(truth_table):
+    #TODO:: compatibility with dont care set
     #returns the of blocks of 0s and 1s and the number of 1 blocks
     outputs = truth_table[:, -1]
 
@@ -35,8 +36,6 @@ def get_blocks(truth_table):
 
     return np.vstack((blocks, block_sizes)).T, n_ones
 
-
-
 def check_constraints(lower, upper):
     #checks whther putting lower and upper in this order is valid
     return np.sum(lower*upper) < np.sum(upper)
@@ -46,6 +45,7 @@ def get_conflicting_constraints(truth_table):
 
 
     relations = []
+    violated = []
     count = 0
     for i in range(len(inputs)):
         for j in range(i+1, len(inputs)):
@@ -53,8 +53,10 @@ def get_conflicting_constraints(truth_table):
             if np.sum(inputs[i, :]-AND) != 0:
                 relations.append([inputs[i, :]-AND, inputs[j,:] -AND])
                 count += 1
+                if not check_constraints(inputs[i, :], inputs[j,:]):
+                    violated.append('CONC')
 
-    violated = []
+
     for i in range(len(relations)):
         for j in range(len(relations)):
             r = relations[i]
@@ -87,7 +89,6 @@ def hash_table(truth_table):
         for s in input_states:
             hashed += str(s)
     return hashed
-
 
 def simplify(state_mapping, n_inputs):
     redenduant_inputs = []
@@ -129,75 +130,6 @@ def simplify(state_mapping, n_inputs):
         new_state_mapping = state_mapping
 
     return new_state_mapping
-
-def graph_search(truth_table, target_n_nodes = -1):
-
-    discovered_tables = {hash_table(truth_table)} # use a set for this
-
-    blocks, n_ones = get_blocks(truth_table)
-    truth_tables = qu.PriorityQueue()
-
-
-    truth_tables.put((n_ones, len(discovered_tables), truth_table))
-    best_table = truth_table
-
-
-    while not truth_tables.empty():
-
-
-        n_ones, _, truth_table = truth_tables.get()  # BFS or DFS depending on this line
-
-
-        if n_ones < get_blocks(best_table)[1]:
-            best_table = truth_table
-
-        if n_ones <= target_n_nodes: #exit condition
-
-            return best_table, discovered_tables
-
-        blocks, _ = get_blocks(truth_table)
-
-        # look at smallest block and see if we can move it to reduce the number of blocks
-        indices = np.argsort(blocks[:, 1])
-
-        for i in indices[indices != 0][indices[indices != 0] != max(indices)]:  #we can never move the end states, only move other states into their blocks
-
-            block_start = np.sum(blocks[0:i, 1])
-            block_size = blocks[i, 1]
-
-
-            for s, state in enumerate(truth_table[block_start:block_start+block_size, :-1]): # for each state in the block
-
-
-                lower = truth_table[block_start+s -1, :-1]
-                higher = truth_table[block_start + s + 1, :-1]
-
-
-                if check_constraints(state, lower): #check if we can put state below
-
-                    new_truth_table = copy.deepcopy(truth_table)
-                    new_truth_table[[s+block_start -1, s+block_start], :] = new_truth_table[[s+block_start, s+block_start-1], :]
-                    new_blocks, new_n_ones = get_blocks(new_truth_table)
-                    #if len(new_blocks) <= len(blocks) : #dont accept swaps that increase the number of blocks
-                    if hash_table(new_truth_table) not in discovered_tables:
-                        discovered_tables.add(hash_table(new_truth_table))
-                        truth_tables.put((new_n_ones, len(discovered_tables), new_truth_table))
-
-
-                if check_constraints(higher, state): #check if we can put state above
-
-                    new_truth_table = copy.deepcopy(truth_table)
-                    new_truth_table[[s+block_start, 1+s+block_start], :] = new_truth_table[[s+1+block_start, s+block_start], :]
-
-                    new_blocks, new_n_ones = get_blocks(new_truth_table)
-
-                    #if len(new_blocks) <= len(blocks) :  # dont accpt swaps that increase the number of blocks
-                    if hash_table(new_truth_table) not in discovered_tables:
-                        discovered_tables.add(hash_table(new_truth_table))
-                        truth_tables.put((new_n_ones, len(discovered_tables), new_truth_table))
-
-
-    return best_table, discovered_tables
 
 def get_activations(best_table, allowed_acts = ['TH', 'IT', 'BP', 'IB']):
     n_inputs = int(np.log2(len(best_table)))
@@ -336,14 +268,45 @@ def get_logic_gates(activations):
     return logic_gates
 
 def covers_from_blocks(blocks):
-    # returns the start position and size of each cover
-    indices = np.where(blocks[:, 0] == 1)[0]
 
-    sizes = blocks[indices, 1]
+    current_pos = 0
+    in_cover = False
+    start_pos = []
+    sizes = []
+    scores = []
+    for b, block in enumerate(blocks):
 
-    start_pos = [np.sum(blocks[:i, 1]) for i in indices]
+        if not in_cover and block[0] in [1,2]:
+            start = current_pos
+            in_cover = True
+            size = block[1]
+            if block[0] == 1:
+                score = block[1]
+            else:
+                score = 0
 
-    return np.vstack((start_pos, sizes)).T
+
+        elif in_cover and block[0] in [1, 2]:
+
+            size += block[1]
+
+            if block[0] == 1:
+                score += block[1]
+
+        if (in_cover and block[0] == 0) or b == len(blocks)-1 :
+            start_pos.append(start)
+            sizes.append(size)
+            scores.append(score)
+            in_cover = False
+
+
+
+        current_pos += block[1]
+
+
+
+
+    return np.vstack((start_pos, sizes, scores)).T
 
 
 def can_move(truth_table, frm, to):
@@ -544,75 +507,346 @@ def rough_optimisation(truth_table):
         print('CONFLICTS')
     return new_table, min_blocks
 
-def macchiato(outputs):
+
+def hash_table(truth_table):
+    #hashes truth table into a unique string so we can keep track of which ones have been visited
+    hashed = ''
+    for input_states in truth_table[:, :-1]:
+        for s in input_states:
+            hashed += str(s)
+    return hashed
+
+
+
+def least_blocks_obj(truth_table):
+    blocks, n_ones = get_blocks(truth_table)
+    return n_ones
+
+def greedy_obj(truth_table, priority = None):
+    blocks, n_ones = get_blocks(truth_table)
+    covers = covers_from_blocks(blocks)
+
+    if len(covers)==0:
+        return 0
+    elif priority == 'end' and truth_table[0, -1] in [1,2] and truth_table[-1, -1] in [1, 2]:
+        return -(covers[0, 2] + covers[-1, 2])
+    elif priority == 'top' and truth_table[-1, -1] in [1,2]:
+        return -covers[-1, 2]
+    elif priority == 'bot' and truth_table[0, -1] in [1,2]:
+        return -covers[0, 2]
+    else:
+        return -np.max(covers[:, 2])
+
+
+def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0):
+    '''
+    :param outputs:
+    :param max_queue_size:
+    :param objective:  the function that is to be minimised by the graph search, takes a truth table and outputs a scalar
+    :return:
+    '''
+
+    n_inputs = int(np.log2(outputs.size))
+    truth_table = create_truth_table(outputs)
+
+    #truth_table, _ = rough_optimisation(truth_table)
+    discovered_tables = {hash_table(truth_table)} # use a set for this
+
+    blocks, n_ones = get_blocks(truth_table)
+
+    obj = objective(truth_table)
+
+    truth_tables = qu.PriorityQueue(maxsize=max_queue_size)
+
+
+
+
+    truth_tables.put((obj, len(discovered_tables), truth_table), block = False)
+    best_table = truth_table
+
+
+    while not truth_tables.empty():
+
+        #print(len(discovered_tables))
+        #print(truth_tables.qsize())
+
+        obj, _, truth_table = truth_tables.get(block = False)  # BFS or DFS depending on this line
+
+        if obj < objective(best_table) and len(get_conflicting_constraints(truth_table))==0:
+            best_table = truth_table
+
+        blocks, _ = get_blocks(truth_table)
+
+
+        indices = range(len(blocks))
+        for i in indices:  #we can never move the end states, only move other states into their blocks
+
+            block_start = np.sum(blocks[0:i, 1])
+            block_size = blocks[i, 1]
+
+            for s, state in enumerate(truth_table[block_start:block_start+block_size, :-1]): # for each state in the block
+
+                if block_start + s + 1 < int(outputs.size)-1 and block_start + s - 1 > 0:
+
+                    lower = truth_table[block_start+s -1, :-1]
+                    higher = truth_table[block_start + s + 1, :-1]
+
+                    if check_constraints(state, lower): #check if we can put state below
+
+                        new_truth_table = move(truth_table, s+block_start, s+block_start -1)
+                        new_obj = objective(new_truth_table)
+                        #if len(new_blocks) <= len(blocks) : #dont accept swaps that increase the number of blocks
+                        if hash_table(new_truth_table) not in discovered_tables:
+                            discovered_tables.add(hash_table(new_truth_table))
+                            try:
+                                truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block = False)
+                            except Exception as e: # queue is full
+                                pass
+
+
+                    if check_constraints(higher, state): #check if we can put state above
+
+                        new_truth_table = move(truth_table, s + block_start, s + block_start + 1)
+
+                        new_obj = objective(new_truth_table)
+
+                        #if len(new_blocks) <= len(blocks) :  # dont accpt swaps that increase the number of blocks
+                        if hash_table(new_truth_table) not in discovered_tables:
+                            discovered_tables.add(hash_table(new_truth_table))
+                            try:
+                                truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block=False)
+                            except Exception as e: # queue is full
+                                pass
+
+    return best_table
+
+def heuristic_search(outputs, objective=least_blocks_obj, max_queue_size=0):
+    '''
+        :param outputs:
+        :param max_queue_size:
+        :param objective:  the function that is to be minimised by the graph search, takes a truth table and outputs a scalar
+        :return:
+        '''
+
+    n_inputs = int(np.log2(outputs.size))
+    truth_table = create_truth_table(outputs)
+
+    # truth_table, _ = rough_optimisation(truth_table)
+    discovered_tables = {hash_table(truth_table)}  # use a set for this
+
+    blocks, n_ones = get_blocks(truth_table)
+
+    obj = objective(truth_table)
+
+    truth_tables = qu.PriorityQueue(maxsize=max_queue_size)
+
+    truth_tables.put((obj, len(discovered_tables), truth_table), block=False)
+    best_table = truth_table
+
+    while not truth_tables.empty():
+
+        # print(len(discovered_tables))
+        # print(truth_tables.qsize())
+
+        obj, _, truth_table = truth_tables.get(block=False)  # BFS or DFS depending on this line
+
+        if obj < objective(best_table) and len(get_conflicting_constraints(truth_table)) == 0:
+            best_table = truth_table
+
+        blocks, _ = get_blocks(truth_table)
+
+        # look at smallest block and see if we can move it to reduce the number of blocks
+        indices = np.argsort(blocks[:, 1])
+
+        for i in indices:  # we can never move the end states, only move other states into their blocks
+
+            block_start = np.sum(blocks[0:i, 1])
+            block_size = blocks[i, 1]
+
+            for s, state in enumerate(
+                    truth_table[block_start:block_start + block_size, :-1]):  # for each state in the block
+
+                if block_start + s + 1 < int(outputs.size) - 1 and block_start + s - 1 > 0:
+
+                    lower = truth_table[block_start + s - 1, :-1]
+                    higher = truth_table[block_start + s + 1, :-1]
+
+                    if check_constraints(state, lower):  # check if we can put state below
+
+                        new_truth_table = move(truth_table, s + block_start, s + block_start - 1)
+                        new_obj = objective(new_truth_table)
+                        # if len(new_blocks) <= len(blocks) : #dont accept swaps that increase the number of blocks
+                        if hash_table(new_truth_table) not in discovered_tables and new_obj <= objective(best_table):
+                            discovered_tables.add(hash_table(new_truth_table))
+                            try:
+                                truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block=False)
+                            except Exception as e:  # queue is full
+                                pass
+
+                    if check_constraints(higher, state):  # check if we can put state above
+
+                        new_truth_table = move(truth_table, s + block_start, s + block_start + 1)
+
+                        new_obj = objective(new_truth_table)
+
+                        # if len(new_blocks) <= len(blocks) :  # dont accpt swaps that increase the number of blocks
+                        if hash_table(new_truth_table) not in discovered_tables  and new_obj <= objective(best_table):
+                            discovered_tables.add(hash_table(new_truth_table))
+                            try:
+                                truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block=False)
+                            except Exception as e:  # queue is full
+                                pass
+
+    return best_table
+
+def macchiato_v2(outputs, max_queue_size = 0):
+    '''
+    Does the iterative graph search to distribute over multiple colonies in different positions
+    :param outputs:
+    :param max_queue_size:
+    :return:
+    '''
+    priorities = ['top', 'bot'] #{-1: 0, 0: 1, 1: 94, 2: 158, 3: 3, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
+    #priorities = [] #{-1: 0, 0: 1, 1: 94, 2: 149, 3: 12, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
+    priorities = ['end', 'top', 'bot'] #{-1: 0, 0: 1, 1: 151, 2: 104, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
+
+    round = 0
+    tables = []
+    while np.sum(outputs[outputs == 1]) > 0:
+
+        if round < len(priorities) - 1:
+            priority = priorities[round]
+            obj = lambda x: greedy_obj(x, priority=priority)
+        else:
+            obj = greedy_obj
+            priority = None
+
+        truth_table = heuristic_search(outputs, objective=obj, max_queue_size=max_queue_size)
+
+
+        tables.append(copy.deepcopy(truth_table))
+        blocks, n_ones = get_blocks(truth_table)
+        covers = covers_from_blocks(blocks)
+
+        # put the states covered by this round in the dont care set
+        if priority == 'end' and truth_table[0, -1] in [1] and truth_table[-1, -1] in [1]:
+            #print('end')
+            covered = [covers[0], covers[-1]]
+        elif priority == 'top' and truth_table[-1, -1] in [1]:
+            #print('top')
+            covered = [covers[-1]]
+        elif priority == 'bot' and truth_table[0, -1] in [1]:
+            #print('bot')
+            covered = [covers[0]]
+        else:
+            #print('mid')
+            covered = [covers[np.argmax(covers[:,2])]]
+
+
+        for cov in covered:
+            truth_table[cov[0]: cov[0]+cov[1], -1] = 2
+
+        outputs = truth_table[:, -1]
+
+
+
+        round += 1
+
+    return tables
+
+def macchiato(outputs, max_queue_size = 0):
     truth_table = create_truth_table(outputs)
     truth_table, _ = rough_optimisation(truth_table)
 
+    discovered_tables = {hash_table(truth_table)}  # use a set for this
+
+    blocks, n_ones = get_blocks(truth_table)
+
+    truth_tables = qu.PriorityQueue()
+
+    truth_tables.put((n_ones, len(discovered_tables), truth_table))
 
 
     current_table = truth_table
 
     best_table = copy.deepcopy(current_table)
-    finished = False
+    best_n_ones = n_ones
 
-    while not finished:
+    while not truth_tables.empty():
+        finished = False
+        n_ones, _, current_table = truth_tables.get()
+        print(truth_tables.qsize())
+        while not finished:
 
-        finished = True
-        blocks = get_blocks(current_table)[0]
-
-        covers = covers_from_blocks(blocks)
-
-        # each block of ones is a cover, try and maximise each cover in turn, starting from largest cover
-        cov_sort = np.argsort(covers[:, 1])  # this will bias towards states in the middle, probably not what we want
-
-        for index in cov_sort:
-            # get smallest cover
-            smallest_cover = covers[index]
+            finished = True
+            blocks = get_blocks(current_table)[0]
 
 
-            small_start = smallest_cover[0]
-            small_end = smallest_cover[0] + smallest_cover[1]
-            # try and eliminate smallest cover by puttin gones into the covers on either side
-            if index > 0:
-                lower_cover = covers[index -1]
-            else:
-                lower_cover = None
+            covers = covers_from_blocks(blocks)
 
-            if index < len(covers) - 1:
-                higher_cover = covers[index+ 1]
-            else:
-                higher_cover = None
+            # each block of ones is a cover, try and remove each cover in turn, starting from smallest cover
+            cov_sort = np.argsort(covers[:, 1])  # this will bias towards states in the middle, probably not what we want
 
-            test_table = copy.deepcopy(current_table)
+            for index in cov_sort:
 
-            if lower_cover is not None:
+                # get smallest cover
+                smallest_cover = covers[index]
+                small_start = smallest_cover[0]
+                small_end = smallest_cover[0] + smallest_cover[1]
+                # try and eliminate smallest cover by putting ones into the covers on either side
+                if index > 0:
+                    lower_cover = covers[index -1]
+                else:
+                    lower_cover = None
 
-                # go through oes and put as many into the lower block as possible
-                for i, state in enumerate(range(small_start, small_end)):
+                if index < len(covers) - 1:
+                    higher_cover = covers[index+ 1]
+                else:
+                    higher_cover = None
 
-                    if can_move(test_table, state, lower_cover[0] + lower_cover[1] + i):
-                        test_table = move(test_table, state, lower_cover[0] + lower_cover[1] + i)
-                        smallest_cover[0] += 1
-                        smallest_cover[1] -=1
+                test_table = copy.deepcopy(current_table)
 
-            small_start = smallest_cover[0]
-            small_end = smallest_cover[0] + smallest_cover[1]
+                if lower_cover is not None:
 
-            if higher_cover is not None:
-                # go through oes and put as many into the upper block as possible
-                for i, state in enumerate(range(small_start, small_end)[::-1]):
-                    if can_move(test_table, state, higher_cover[0] - i - 1):
-                        test_table = move(test_table, state, higher_cover[0] - i - 1)
-                        smallest_cover[1] -= 1
+                    # go through oes and put as many into the lower block as possible
+                    # TODO:: should it be i here or a count of the number of states that have been moved
 
-            if smallest_cover[1] == 0:
-                current_table = test_table
-                finished = False
-                if len(get_conflicting_constraints(current_table)) == 0:
-                    best_table = copy.deepcopy(current_table)
-                break
+                    for i, state in enumerate(range(small_start, small_end)):
+
+                        if can_move(test_table, state, lower_cover[0] + lower_cover[1] + i):
+                            test_table = move(test_table, state, lower_cover[0] + lower_cover[1] + i)
+                            smallest_cover[0] += 1
+                            smallest_cover[1] -=1
+                            new_blocks, new_n_ones =  get_blocks(test_table)
+                            if hash_table(test_table) not in discovered_tables:
+                                discovered_tables.add(hash_table(test_table))
+                                truth_tables.put((new_n_ones, len(discovered_tables), test_table))
+
+                small_start = smallest_cover[0]
+                small_end = smallest_cover[0] + smallest_cover[1]
+
+                if higher_cover is not None:
+                    # go through oes and put as many into the upper block as possible
+                    for i, state in enumerate(range(small_start, small_end)[::-1]):
+
+                        if can_move(test_table, state, higher_cover[0] - i - 1):
+                            test_table = move(test_table, state, higher_cover[0] - i - 1)
+                            smallest_cover[1] -= 1
+                            new_blocks, new_n_ones = get_blocks(test_table)
+                            if hash_table(test_table) not in discovered_tables:
+                                discovered_tables.add(hash_table(test_table))
+                                truth_tables.put((new_n_ones, len(discovered_tables), test_table))
+
+                if smallest_cover[1] == 0:
+
+                    current_table = test_table
+                    finished = False
+                    blocks, n_ones = get_blocks(current_table)
+                    if len(get_conflicting_constraints(current_table)) == 0 and n_ones < best_n_ones:
+                        best_table = copy.deepcopy(current_table)
+                    break
     if len(get_conflicting_constraints(best_table))>0:
-        print(1)
+        print('CONFLICTS')
     return best_table
 
 
@@ -628,7 +862,11 @@ if __name__ == '__main__':
 
 
     try:
-        outputs = np.array(list(args.outputs[0]), dtype=np.int32)
+        outputs = np.array(list(args.outputs[0]), dtype=np.str)
+
+        outputs[outputs == 'X'] = '2'
+        outputs = outputs.astype(np.int32)
+        print(outputs)
         truth_table = create_truth_table(outputs)
     except ValueError as e:
         print()
@@ -652,13 +890,25 @@ if __name__ == '__main__':
 
     n_inputs = int(np.log2(outputs.size))
 
-    best_table = macchiato(outputs)
-    #best_table = create_truth_table(outputs)
+    #best_table = macchiato(outputs, max_queue_size=1)
+    #best_table = graph_search(outputs, max_queue_size=0)
+    best_tables = macchiato_v2(outputs)
 
-    print('Simplified truth table: ')
-    print(best_table)
 
+
+
+    print('VIOLATED CONSTRAINTS')
+    all_conflicts = [get_conflicting_constraints(best_table) for best_table in best_tables]
+    for conflicts in all_conflicts:
+        for c in conflicts:
+            print(np.array(c).tolist()[0])
     print()
+
+
+    print('Simplified truth tables: ')
+    for t in best_tables:
+        print(t)
+    sys.exit()
 
 
 
@@ -696,6 +946,8 @@ if __name__ == '__main__':
 
 
 
+# {-1: 0, 0: 2, 1: 73, 2: 105, 3: 69, 4: 7, 5: 0, 6: 0, 7: 0, 8: 0}
+#{-1: 0, 0: 2, 1: 66, 2: 115, 3: 70, 4: 3, 5: 0, 6: 0, 7: 0, 8: 0}
 
 
 
