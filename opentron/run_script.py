@@ -28,14 +28,14 @@ def pipette(plates, typ, liq, pip):
                 n_wells_remaining -= vol / vol_disp
                 pip.aspirate(vol, liq, rate=0.5)
 
-            pip.dispense(1, agar[well].bottom(-1), rate=0.5)
+            pip.dispense(1, agar[well].bottom(), rate=0.5)
 
     pip.drop_tip()
 
 
 def run(protocol):
 
-    plates = json.load(open(os.path.join('output', 'plate_config.json')))
+    plates = json.load(open(os.path.join('plate_config.json')))
     deep96 = protocol.load_labware('nest_96_wellplate_2ml_deep', '4')
 
     tip10 = protocol.load_labware('opentrons_96_filtertiprack_10ul', '1')

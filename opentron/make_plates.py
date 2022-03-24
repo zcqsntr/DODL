@@ -83,14 +83,16 @@ def get_plates(wells):
         for w, well in enumerate(wells_for_plate):
 
             if not well['BP'].size == 0:
-                bandpass_wells.append(well['BP'] + origins[w] - np.array([1,1])) #- np.array([1,1]) to acocunt for 1 indexing
+                bandpass_wells.append(well['BP'] + origins[w])# - np.array([1,1])) #- np.array([1,1]) to acocunt for 1 indexing
             if not well['TH'].size == 0:
-                threshold_wells.append(well['TH'] + origins[w]- np.array([1,1]))
+                threshold_wells.append(well['TH'] + origins[w])#- np.array([1,1]))
 
             if not well['IPTG'].size == 0:
-                IPTG_wells.append(well['IPTG'] + origins[w]- np.array([1,1]))
+                IPTG_wells.append(well['IPTG'] + origins[w])#- np.array([1,1]))
 
-        bandpass_wells, threshold_wells, IPTG_wells = map(np.vstack, [bandpass_wells, threshold_wells, IPTG_wells])
+
+
+        bandpass_wells, threshold_wells, IPTG_wells = map(np.vstack, [bandpass_wells, threshold_wells, IPTG_wells]) #TODO:: this crashes if one of these is empty
 
         bandpass_wells, threshold_wells, IPTG_wells = map(convert_to_opentron, [bandpass_wells, threshold_wells, IPTG_wells])
 
@@ -168,7 +170,7 @@ if __name__ == '__main__':
 
     os.makedirs(out_file, exist_ok=True)
 
-    out_file = os.path.join(out_file, 'plate_config.json')
+
 
 
 
@@ -183,6 +185,7 @@ if __name__ == '__main__':
     plates = get_plates(wells)
 
     if args.plot:
-        draw_plates(plates, os.path.join(dir_path, 'output'))
+        draw_plates(plates,  out_file)
 
+    out_file = os.path.join(out_file, 'plate_config.json')
     json.dump(plates, open(out_file, 'w+'))
