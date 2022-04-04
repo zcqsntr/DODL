@@ -156,6 +156,7 @@ parser = argparse.ArgumentParser(description='Produce plate configurations for t
 parser.add_argument('--in_file',  type=str, help='the input data from colony_placement, default is colony_placement/output/placement.json')
 parser.add_argument('--out_file', type=str, help='the filepath to save output in, default is opentron/output/plate_config.json')
 parser.add_argument('--plot', type=str, help='1 to plot plates, 0 to not')
+
 if __name__ == '__main__':
     args = parser.parse_args()
 

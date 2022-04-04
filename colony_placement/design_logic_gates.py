@@ -93,7 +93,7 @@ if __name__ == '__main__':
     max_coords = np.array([[0, 0]])
 
     max_t = -1
-    start_coords = np.array([[2, 7]])
+    start_coords = np.array([[7, 7]])
 
     all_indices = []
     max_ind = 6

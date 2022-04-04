@@ -150,11 +150,10 @@ if __name__ == '__main__':
     simulator.bound = bound
 
     activations = data['activations']
-    thresholds = data['thresholds']
-    logic_gates = data['logic_gates'] # BP, TH, multiplexer
+
     ind0, ind1, ind2 = np.array(data['IPTG_inds'])
     n_inputs = len(data['IPTG_inds'])
-    start_coords = np.array([[2, 7]])
+    start_coords = np.array([[7, 7]])
 
     inducer_coords = np.array(
         [[start_coords + ind0 * points_per_well], [start_coords + ind1 * points_per_well],
@@ -173,11 +172,28 @@ if __name__ == '__main__':
         get_node_coordinates(np.array([rp]), receiver_radius, environment_size[0], environment_size[1], w) for rp in
         receiver_pos]
 
+    # plot the inducer and receiver locations
+    grid = np.zeros(environment_size)
+
+    grid[np.where(bound == -1)] = -1
+
+    for i, coord in enumerate(inducer_coords):
+        grid[coord[0], coord[1]] = i + 1
+
+    for j, rc in enumerate(receiver_coords):
+        grid[rc[:, 0], rc[:, 1]] = i + j + 2
+
+    im = plt.imshow(grid)
+    plt.colorbar(im)
 
 
 
-    score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, inducer_coords, thresholds,
-                                                                         logic_gates, activations)
+
+    all_sims = []
+    for i in range(len(activations)):
+        sims = simulator.run_sims( inducer_coords, receiver_coords[i], activations[i] == 'BP', t_final = 20*60, growth_delay=5*60)
+
+        all_sims.append(sims)
 
 
     if n_inputs == 2:

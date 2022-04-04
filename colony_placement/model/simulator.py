@@ -26,15 +26,24 @@ class DigitalSimulator():
         self.dt = dt #minutes
 
 
-    def run_sims(self, inducer_coords, receiver_coords, bandpass = False, plot = False):
+    def run_sims(self, inducer_coords, receiver_coords, bandpass = False, plot = False, t_final = 20*60, growth_delay = 0):
         '''
         runs the simulations for all input states for a given set of inducer and receiver coords and receiver activation
 
+        :param inducer_coords:
+        :param receiver_coords:
+        :param bandpass:
+        :param plot:
+        :param t_final:
+        :param growth_delay: delay in the growth of the ccells to investigate noise in timing
+        :return:
         '''
+
+
 
         params, gompertz_ps = ff.get_fitted_params(bandpass=bandpass)
 
-        dx = lambda t, y: ff.dgompertz(t, *gompertz_ps)
+        dx = lambda t, y: ff.dgompertz(t - growth_delay, *gompertz_ps)
 
         n_inputs = len(inducer_coords)
         all_inputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
@@ -44,11 +53,11 @@ class DigitalSimulator():
 
         # muliple recievers can have multiple activations
         for i in range(2 ** n_inputs):
-
+            #print(np.array([1,2,3])[all_inputs[i] == 1])
             plate = ff.make_plate(receiver_coords, inducer_coords[all_inputs[i] == 1], params, self.inducer_conc,
                                   self.environment_size, self.w, dx, laplace = self.laplace, bandpass=bandpass)
 
-            sim_ivp = plate.run(t_final=20 * 60, dt=self.dt, params=params)
+            sim_ivp = plate.run(t_final=t_final, dt=self.dt, params=params)
             if plot:
                 plate.plot_simulation(sim_ivp, 1, time_points = [-1], scale='linear', cols=2)
             all_sims.append(sim_ivp)
