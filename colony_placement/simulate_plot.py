@@ -3,7 +3,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'model'))
 dir_path = os.path.dirname(os.path.realpath(__file__))
-
+import fitting_functions as ff
 import matplotlib as mpl
 mpl.use('tkagg')
 import matplotlib.pyplot as plt
@@ -188,10 +188,9 @@ if __name__ == '__main__':
 
 
 
-
     all_sims = []
     for i in range(len(activations)):
-        sims = simulator.run_sims( inducer_coords, receiver_coords[i], activations[i] == 'BP', t_final = 20*60, growth_delay=5*60)
+        sims = simulator.run_sims( inducer_coords, receiver_coords[i], activations[i] == 'BP', t_final = 20*60, growth_delay=0*60)
 
         all_sims.append(sims)
 
