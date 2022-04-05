@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
     all_sims = []
     for i in range(len(activations)):
-        sims = simulator.run_sims( inducer_coords, receiver_coords[i], activations[i] == 'BP', t_final = 20*60, growth_delay=5*60)
+        sims = simulator.run_sims( inducer_coords, receiver_coords[i], activations[i] == 'BP', t_final = 20*60, growth_delay=-10*60)
 
         all_sims.append(sims)
 
