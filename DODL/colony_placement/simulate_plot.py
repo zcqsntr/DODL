@@ -192,6 +192,7 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(outpath, 'simulation_grid.png'), dpi=300)
 
 
+
     all_sims = []
     for i in range(len(activations)):
         sims = simulator.run_sims( inducer_coords, receiver_coords[i], activations[i] == 'BP', t_final = 20*60, growth_delay=0*60)
