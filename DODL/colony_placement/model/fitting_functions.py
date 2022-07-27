@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 import os
-
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Alex_model'))
 import helper_functions as hf
 from plate import Plate
 from species import Species
@@ -20,7 +20,13 @@ def dgompertz(t, A, um, lam):
 def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environment_size, w, dx, laplace = False, bandpass = False, fitting = False):
 
 
-    amount = inducer_conc * 1e-6 #milli moles
+    #amount = inducer_conc * 1e-3 #micro moles
+
+
+    if inducer_conc > 0.1:
+        raise Exception('CONC IS VERY HIGH, CHECK THAT IT IS IN MOLAR, NOT mM')
+
+    amount = inducer_conc
 
     agar_thickness = 3.12  # mm
 
@@ -29,7 +35,7 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
     if fitting:
         init_conc /= len(inducer_coords)
 
-    init_conc *= 1e6  # mM
+    init_conc *= 1e3  # convert to  mM
     A_0 = init_conc
 
     D_N, mu_max, K_mu, gamma, D_A, \
@@ -204,11 +210,11 @@ def get_default_params():
 
 def get_fitted_params(bandpass = False):
     if bandpass:
-        gompertz_ps = [1.92683259e-01, 2.64236032e-04, 4.32035143e+02]  # bandpass second characterisation data
-        X_0 = 2.376173539938517e-07  # from gompertz, bandpasss
+        gompertz_ps = [2.53791252e-01, 2.95660906e-04, 3.54576795e+02]  # bandpass second characterisation data
+        X_0 = 5.970081581135449e-05  # from gompertz, bandpasss
     else:
-        gompertz_ps = [2.11394439e-01, 2.41594404e-04, 4.53552100e+02]  # threshold second characterisation data
-        X_0 = 3.1220959380630476e-06  # from gompertz, threshold
+        gompertz_ps = [2.61562834e-01, 3.21504837e-04 ,4.04301820e+02]  # threshold new characterisation data
+        X_0 = 7.2412638409233995e-06 # from gompertz, threshold, new characterisation
     params = get_default_params()
 
     # min: 24.799506417001446
@@ -252,6 +258,20 @@ def get_fitted_params(bandpass = False):
                      1.56052788e+00,
                      1.23855350e-01]
 
+    # min: 43.94537506931077, MSE after second evolution with problematic points removed
+    fitted_params = [3.68033023e-02,
+                     8.21667283e+04,
+                     1.00235768e-04,
+                     4.85833372e-04,
+                     1.02155766e+00,
+                     1.47406373e+04,
+                     7.58449901e-06,
+                     1.03026478e+02,
+                     2.37032357e+00,
+                     3.01979916e+00,
+                     7.53503109e+00,
+                     3.23521712e-01]
+
     '''
     # min: 3.792371477640465 using threshold params and new model, these turn off really early
     BP_params = [7.15567501e+04,
@@ -264,6 +284,16 @@ def get_fitted_params(bandpass = False):
                  3.54010551e+01]
     '''
 
+    # loss = 3.0985708889858046 BP on top of threshold after second evolve with new characterisation
+    BP_params = [2.25538992e+04,
+                 2.77648415e-05,
+                 5.65224390e-03,
+                 4.43375276e+00,
+                 2.30406041e+05,
+                 8.36906261e-01,
+                 1.94664816e+01,
+                 6.81117529e-01]
+
     params[4:11] = fitted_params[0:7]
     params[17:21] = fitted_params[7:11]
     params[-1] = fitted_params[11]
@@ -272,6 +302,8 @@ def get_fitted_params(bandpass = False):
     params[-14:-8] = BP_params[-8:-2]
 
     params[-4:-2] = BP_params[-2:]
+
+    params[-2] = X_0
 
 
 

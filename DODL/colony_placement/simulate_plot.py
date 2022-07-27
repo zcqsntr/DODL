@@ -24,7 +24,7 @@ from simulation_functions import get_shape_matrix, run_sim, get_node_coordinates
 
 
 parser = argparse.ArgumentParser(description='Simulate and plot a given placement')
-parser.add_argument('in_file', metavar='T', type=str, nargs=1, help='the path of the saved placement of colonies and inducers')
+parser.add_argument('--in_file', type=str, nargs=1, help='the path of the saved placement of colonies and inducers')
 parser.add_argument('--outpath', type=str, help='the filepath to save output in, default is colony_placement/plot')
 
 
@@ -34,7 +34,10 @@ plate_width = 35
 w = plate_width / environment_size[0] # inter-well spacing in mm
 w = 0.9
 points_per_well = int(4.5/w)
-conc = 5
+
+print('p per w', points_per_well)
+conc = 7.5 #mM
+conc/=1000 # MUST BE IN MOLAR TO MATCH CHARACTERISATION EXP
 dt = 10  # sample time of simulations in minutes
 def laplace(x):
 
@@ -82,13 +85,13 @@ def plot_timecourses(all_processed_GFPs):
 
         plt.legend()
 
-    timecourse_fig.savefig('timecourse.png', dpi=300)
+        timecourse_fig.savefig(os.path.join(outpath,'timecourse_'+str(i)+'.png'), dpi=300)
 
 def plot_barchart(all_processed_GFPs):
     print(np.array(all_processed_GFPs).shape)
 
 
-    for processed_GFPs in np.array(all_processed_GFPs):
+    for i,processed_GFPs in enumerate(np.array(all_processed_GFPs)):
         end_GFPs = processed_GFPs[:, -1]
         '''
         plt.figure()
@@ -118,14 +121,14 @@ def plot_barchart(all_processed_GFPs):
         plt.ylabel('GFP fold change {}hrs'.format(bar_chart_t))
 
         # plt.legend()
-        plt.savefig('fold_change.png', dpi=300)
+        plt.savefig(os.path.join(outpath, 'fold_change_' + str(i) + '.png'), dpi=300)
 
 if __name__ == '__main__':
 
 
     args = parser.parse_args()
 
-    in_file = args.in_file[0]
+    in_file = args.in_file
     outpath = args.outpath
 
     if outpath is None:
@@ -134,6 +137,8 @@ if __name__ == '__main__':
     if in_file is None:
         in_file = os.path.join(os.path.join(os.path.join(os.path.dirname(dir_path), 'colony_placement'), 'output'),
                                'placement.json')
+    else:
+        in_file = args.in_file[0]
 
     os.makedirs(outpath, exist_ok=True)
 
@@ -151,13 +156,12 @@ if __name__ == '__main__':
 
     activations = data['activations']
 
-    ind0, ind1, ind2 = np.array(data['IPTG_inds'])
+    IPTG_inds = np.array(data['IPTG_inds'])
     n_inputs = len(data['IPTG_inds'])
-    start_coords = np.array([[7, 7]])
+    start_coords = np.array([[2, 7]]) # this is a,1 on opentron top left well
 
     inducer_coords = np.array(
-        [[start_coords + ind0 * points_per_well], [start_coords + ind1 * points_per_well],
-         [start_coords + ind2 * points_per_well]]).reshape(3, 2)
+        [[start_coords + ind * points_per_well] for ind in IPTG_inds]).reshape(-1, 2)
 
 
     #score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords,thresholds,logic_gates, activations,test_t=-1, plot = False)
@@ -185,7 +189,7 @@ if __name__ == '__main__':
 
     im = plt.imshow(grid)
     plt.colorbar(im)
-
+    plt.savefig(os.path.join(outpath, 'simulation_grid.png'), dpi=300)
 
 
 
@@ -210,6 +214,6 @@ if __name__ == '__main__':
 
     plot_barchart(all_processed_GFPs)
 
-    plt.show()
+    #plt.show()
 
 
