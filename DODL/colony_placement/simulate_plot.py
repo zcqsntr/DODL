@@ -60,8 +60,20 @@ def normalise_GFP(all_sims):
             for t in range(GFP.shape[2]):
                 receiver_GFP = GFP[:, :, t]
                 r_c = receiver_coords[i]
-                t_series.append(np.mean(np.sort(receiver_GFP[np.min(r_c[:, 0]): np.max(r_c[:, 0]) + 1,
-                                                np.min(r_c[:, 1]): np.max(r_c[:, 1]) + 1].flatten())[-7:]))
+                # take middle 50% of pixels
+
+
+
+                pixels = np.sort(receiver_GFP[np.min(r_c[:, 0]): np.max(r_c[:, 0]) + 1, np.min(r_c[:, 1]): np.max(r_c[:, 1]) + 1]
+                                                    .flatten())
+
+                l = math.floor(len(pixels) * 0.25)
+                r = math.ceil(len(pixels) * 0.75)
+              
+                t_series.append(np.mean(pixels[l:r]))
+
+
+
             processed_GFPs.append(t_series)
 
         all_processed_GFPs.append(processed_GFPs)
