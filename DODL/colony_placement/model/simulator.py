@@ -26,7 +26,7 @@ class DigitalSimulator():
         self.dt = dt #minutes
 
 
-    def run_sims(self, inducer_coords, receiver_coords, bandpass = False, plot = False, t_final = 20*60, growth_delay = 0):
+    def run_sims(self, inducer_coords, receiver_coords, param_opt , plot = False, t_final = 20*60, growth_delay = 0):
         '''
         runs the simulations for all input states for a given set of inducer and receiver coords and receiver activation
 
@@ -41,7 +41,7 @@ class DigitalSimulator():
 
 
 
-        params, gompertz_ps = ff.get_fitted_params(bandpass=bandpass)
+        params, gompertz_ps = ff.get_fitted_params(param_opt)
 
         dx = lambda t, y: ff.dgompertz(t - growth_delay, *gompertz_ps)
 
@@ -55,7 +55,7 @@ class DigitalSimulator():
         for i in range(2 ** n_inputs):
             #print(np.array([1,2,3])[all_inputs[i] == 1])
             plate = ff.make_plate(receiver_coords, inducer_coords[all_inputs[i] == 1], params, self.inducer_conc,
-                                  self.environment_size, self.w, dx, laplace = self.laplace, bandpass=bandpass)
+                                  self.environment_size, self.w, dx, laplace = self.laplace, bandpass=param_opt in ['bandpass', 'both'])
 
             sim_ivp = plate.run(t_final=t_final, dt=self.dt, params=params)
             if plot:

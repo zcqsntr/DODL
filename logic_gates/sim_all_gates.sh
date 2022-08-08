@@ -1,7 +1,7 @@
 #!/bin/sh
 
 
-cd boundary_inv;
+cd configs;
 
 for filename in ./*
 do
