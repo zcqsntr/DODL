@@ -208,8 +208,15 @@ def get_default_params():
 
     return params
 
-def get_fitted_params(bandpass = False):
-    if bandpass:
+def get_fitted_params(opt):
+    '''
+    returns the fitted gompertz growth and gene circuit/diffusion parameters for BP and TH characterisation
+    :param opt: if 'threshold' will return threshold gompertz params and thrrehsold gene circuit params. If 'bandpass'
+     will return the bandpass gompertz params with the bandpass gene circuit params. If 'both' will return gompertz
+     growth params for the bandpass and the bandpass gene circuit params fitted on top of the threshold params
+    :return:
+    '''
+    if opt in ['bandpass', 'both']:
         gompertz_ps = [2.53791252e-01, 2.95660906e-04, 3.54576795e+02]  # bandpass second characterisation data
         X_0 = 5.970081581135449e-05  # from gompertz, bandpasss
     else:
@@ -217,49 +224,8 @@ def get_fitted_params(bandpass = False):
         X_0 = 7.2412638409233995e-06 # from gompertz, threshold, new characterisation
     params = get_default_params()
 
-    # min: 24.799506417001446
-    fitted_params = [1.77826648e-02,
-                         1.64120920e+04,
-                         2.47415565e-06,
-                         2.92002839e-04,
-                         6.96106975e-01,
-                         1.32937555e+03,
-                         7.86982891e-07,
-                         7.57673598e+01,
-                         3.24550002e+00,
-                         7.55159303e+00,
-                         5.31717871e+00,
-                         1.84995110e-01] # threshold old model
-
-
-
-    # min: 2.175147707185371
-    BP_params = [2.85879101e+04,
-                 6.09622809e-05,
-                 4.09154708e-03,
-                 2.00000000e+01,
-                 8.84861563e+04,
-                 1.03251547e+00,
-                 1.06590408e+01,
-                 8.19685211e-01] #old model
-
-
-    # min: 26.930061095280045 with the updated model
-    fitted_params = [2.09718170e-02,
-                     4.49362919e+04,
-                     2.34638872e-05,
-                     4.45234986e-05,
-                     7.11988626e-01,
-                     3.35441602e+04,
-                     3.55509735e-07,
-                     8.58228897e+01,
-                     2.89591988e+00,
-                     1.25306724e+01,
-                     1.56052788e+00,
-                     1.23855350e-01]
-
     # min: 43.94537506931077, MSE after second evolution with problematic points removed
-    fitted_params = [3.68033023e-02,
+    TH_params = [3.68033023e-02,
                      8.21667283e+04,
                      1.00235768e-04,
                      4.85833372e-04,
@@ -272,37 +238,38 @@ def get_fitted_params(bandpass = False):
                      7.53503109e+00,
                      3.23521712e-01]
 
-    '''
-    # min: 3.792371477640465 using threshold params and new model, these turn off really early
-    BP_params = [7.15567501e+04,
-                 1.33463125e-04,
-                 9.15605330e-04,
-                 1.05108079e+01,
-                 4.53450373e+04,
-                 5.09334794e-01,
-                 2.00000000e+01,
-                 3.54010551e+01]
-    '''
+    params[4:11] = TH_params[0:7]
+    params[17:21] = TH_params[7:11]
+    params[-1] = TH_params[11]
+
 
     # loss = 3.0985708889858046 BP on top of threshold after second evolve with new characterisation
     BP_params = [2.25538992e+04,
-                 2.77648415e-05,
-                 5.65224390e-03,
-                 4.43375276e+00,
-                 2.30406041e+05,
-                 8.36906261e-01,
-                 1.94664816e+01,
-                 6.81117529e-01]
+    2.77648415e-05,
+    5.65224390e-03,
+    4.43375276e+00,
+    2.30406041e+05,
+    8.36906261e-01,
+    1.94664816e+01,
+    6.81117529e-01]
 
-    params[4:11] = fitted_params[0:7]
-    params[17:21] = fitted_params[7:11]
-    params[-1] = fitted_params[11]
+    if opt == 'bandpass':
+        # min:  1.1516729125694962 BP all params after second evolution with new characterisation
+        BP_params = [4.35462879e-02, 4.88625617e+04, 1.83905487e-05, 3.95081261e-05,
+         4.47402392e-01, 1.24947521e+04, 1.10207308e-05, 1.40349891e+01,
+         1.01251668e+00, 8.56144749e+00, 3.70436050e+00, 2.13140568e-01,
+         1.04554814e+05, 9.67789421e-06, 7.18971464e-03, 1.08965612e+01,
+         2.45219227e+04, 2.18075133e-01, 4.49477997e+00, 1.87324583e+01]
+
+        params[4:11] = BP_params[0:7]
+        params[17:21] = BP_params[7:11]
+        params[-1] = BP_params[11]
+
+
 
 
     params[-14:-8] = BP_params[-8:-2]
-
     params[-4:-2] = BP_params[-2:]
-
     params[-2] = X_0
 
 

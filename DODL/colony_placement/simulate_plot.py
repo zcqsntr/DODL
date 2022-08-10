@@ -39,6 +39,10 @@ print('p per w', points_per_well)
 conc = 7.5 #mM
 conc/=1000 # MUST BE IN MOLAR TO MATCH CHARACTERISATION EXP
 dt = 10  # sample time of simulations in minutes
+
+#change bandpass to both to get BP params fitted on top of threshold
+param_opts = {'TH': 'threshold', 'BP': 'bandpass'}
+
 def laplace(x):
 
     return np.matmul(A,x.flatten()).reshape(x.shape)
@@ -60,8 +64,20 @@ def normalise_GFP(all_sims):
             for t in range(GFP.shape[2]):
                 receiver_GFP = GFP[:, :, t]
                 r_c = receiver_coords[i]
-                t_series.append(np.mean(np.sort(receiver_GFP[np.min(r_c[:, 0]): np.max(r_c[:, 0]) + 1,
-                                                np.min(r_c[:, 1]): np.max(r_c[:, 1]) + 1].flatten())[-7:]))
+                # take middle 50% of pixels
+
+
+
+                pixels = np.sort(receiver_GFP[np.min(r_c[:, 0]): np.max(r_c[:, 0]) + 1, np.min(r_c[:, 1]): np.max(r_c[:, 1]) + 1]
+                                                    .flatten())
+
+                l = math.floor(len(pixels) * 0.25)
+                r = math.ceil(len(pixels) * 0.75)
+              
+                t_series.append(np.mean(pixels[l:r]))
+
+
+
             processed_GFPs.append(t_series)
 
         all_processed_GFPs.append(processed_GFPs)
@@ -77,15 +93,19 @@ def plot_timecourses(all_processed_GFPs):
 
         for j in range(2 ** n_inputs):
 
-            timecourse_ax.plot(np.arange(len(processed_GFPs[j])) / 600, processed_GFPs[j], colours[j],
+            timecourse_ax.plot(np.arange(len(processed_GFPs[j])) , processed_GFPs[j], colours[j],
                                label=str(ISs[j]))
             # plt.ylim(top = 0.6, bottom = -0.01)
-            timecourse_ax.set_xlabel('Time (h)')
+            timecourse_ax.set_xlabel('Time (min)')
             timecourse_ax.set_ylabel('GFP mean pixel value per well')
+
+
 
         plt.legend()
 
         timecourse_fig.savefig(os.path.join(outpath,'timecourse_'+str(i)+'.png'), dpi=300)
+
+        np.savetxt(os.path.join(outpath,'timecourse_'+str(i)+'.csv'), processed_GFPs, delimiter=',')
 
 def plot_barchart(all_processed_GFPs):
     print(np.array(all_processed_GFPs).shape)
@@ -166,8 +186,6 @@ if __name__ == '__main__':
 
     #score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords,thresholds,logic_gates, activations,test_t=-1, plot = False)
 
-
-
     receiver_radius = 2
 
     rec_coords = start_coords + receiver_inds * points_per_well
@@ -195,7 +213,7 @@ if __name__ == '__main__':
 
     all_sims = []
     for i in range(len(activations)):
-        sims = simulator.run_sims( inducer_coords, receiver_coords[i], activations[i] == 'BP', t_final = 20*60, growth_delay=0*60)
+        sims = simulator.run_sims( inducer_coords, receiver_coords[i], param_opts[activations[i]], t_final = 20*60, growth_delay=0*60)
 
         all_sims.append(sims)
 

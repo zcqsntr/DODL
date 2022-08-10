@@ -65,6 +65,7 @@ class Plate:
 
             ## get timepoints
             t = np.arange(0, t_final+1, dt)
+           
 
         else:
             t = t_eval
