@@ -26,6 +26,7 @@ from simulation_functions import get_shape_matrix, run_sim, get_node_coordinates
 parser = argparse.ArgumentParser(description='Simulate and plot a given placement')
 parser.add_argument('--in_file', type=str, nargs=1, help='the path of the saved placement of colonies and inducers')
 parser.add_argument('--outpath', type=str, help='the filepath to save output in, default is colony_placement/plot')
+parser.add_argument('--field', type=str, help='whether to simulate field or receivers')
 
 
 ## 1536 well plate
@@ -43,9 +44,7 @@ dt = 10  # sample time of simulations in minutes
 #change bandpass to both to get BP params fitted on top of threshold
 param_opts = {'TH': 'threshold', 'BP': 'bandpass'}
 
-def laplace(x):
 
-    return np.matmul(A,x.flatten()).reshape(x.shape)
 
 
 def normalise_GFP(all_sims):
@@ -57,17 +56,14 @@ def normalise_GFP(all_sims):
             sim_ivp = sims[j]
 
             GFP = sim_ivp[3]
-            # plt.figure()
-            # plt.imshow(sim_ivp[1, :, :, -1])
+            #plt.figure()
+            #plt.imshow(sim_ivp[1, :, :, -1])
             t_series = []
 
             for t in range(GFP.shape[2]):
                 receiver_GFP = GFP[:, :, t]
                 r_c = receiver_coords[i]
                 # take middle 50% of pixels
-
-
-
                 pixels = np.sort(receiver_GFP[np.min(r_c[:, 0]): np.max(r_c[:, 0]) + 1, np.min(r_c[:, 1]): np.max(r_c[:, 1]) + 1]
                                                     .flatten())
 
@@ -81,7 +77,40 @@ def normalise_GFP(all_sims):
             processed_GFPs.append(t_series)
 
         all_processed_GFPs.append(processed_GFPs)
+
     return all_processed_GFPs
+
+
+def save_GFP_images(all_sims):
+
+
+    for i, sims in enumerate(all_sims):
+
+
+        with open(os.path.join(outpath, 'GFP_' + str(i) + '.csv'), 'w+') as f:
+            f.write('receiver, input_state, time(mins), row, col, GFP\n')
+            for j in range(2**n_inputs):
+
+
+
+                sim_ivp = sims[j]
+                GFP = sim_ivp[3]
+
+
+
+
+
+                for t_step in range(GFP.shape[2]):
+
+                    t = t_step * dt
+
+                    for row in range(GFP[:,:,t_step].shape[0]):
+                        for col in range(GFP[:,:,t_step].shape[1]):
+
+                            f.write('{}, {}, {}, {}, {}, {}\n'.format(i, j, t, row, col, GFP[row, col, t_step]))
+
+
+
 
 
 def plot_timecourses(all_processed_GFPs):
@@ -108,7 +137,7 @@ def plot_timecourses(all_processed_GFPs):
         np.savetxt(os.path.join(outpath,'timecourse_'+str(i)+'.csv'), processed_GFPs, delimiter=',')
 
 def plot_barchart(all_processed_GFPs):
-    print(np.array(all_processed_GFPs).shape)
+
 
 
     for i,processed_GFPs in enumerate(np.array(all_processed_GFPs)):
@@ -150,6 +179,8 @@ if __name__ == '__main__':
 
     in_file = args.in_file
     outpath = args.outpath
+    field = int(args.field)
+    print('field', field)
 
     if outpath is None:
         outpath = os.path.join(dir_path, 'output')
@@ -159,6 +190,11 @@ if __name__ == '__main__':
                                'placement.json')
     else:
         in_file = args.in_file[0]
+
+    if field == 1:
+        receiver_radius = 999  # use two for colonies
+    else:
+        receiver_radius = 2
 
     os.makedirs(outpath, exist_ok=True)
 
@@ -170,7 +206,14 @@ if __name__ == '__main__':
     IPTG_inds = np.array(data['IPTG_inds'])
     activations = data['activations']
 
+
+
+
     A, bound = get_shape_matrix(environment_size[0], environment_size[1], environment_size[0] // 2)
+
+    def laplace(x):
+        return np.matmul(A, x.flatten()).reshape(x.shape)
+
     simulator = DigitalSimulator(conc, environment_size, w, dt, laplace=laplace)
     simulator.bound = bound
 
@@ -186,7 +229,7 @@ if __name__ == '__main__':
 
     #score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords,thresholds,logic_gates, activations,test_t=-1, plot = False)
 
-    receiver_radius = 2
+
 
     rec_coords = start_coords + receiver_inds * points_per_well
     receiver_pos = rec_coords * w
@@ -231,6 +274,8 @@ if __name__ == '__main__':
     plot_timecourses(all_processed_GFPs)
 
     plot_barchart(all_processed_GFPs)
+
+    save_GFP_images(all_sims)
 
     #plt.show()
 
