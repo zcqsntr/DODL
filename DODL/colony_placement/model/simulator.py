@@ -1,8 +1,7 @@
 import os
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'IPTG_characterisation'))
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'Alex_model'))
+
 import itertools
 import fitting_functions as ff
 import numpy as np
