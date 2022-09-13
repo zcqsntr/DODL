@@ -21,7 +21,7 @@ import time
 import argparse
 import json
 
-from simulation_functions import get_shape_matrix, get_node_coordinates
+from model.simulation_functions import get_shape_matrix, get_node_coordinates
 
 
 ## 1536 well plate
