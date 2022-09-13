@@ -3,6 +3,8 @@
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'model'))
+
+print(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'model'))
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -19,7 +21,7 @@ import time
 import argparse
 import json
 
-from simulation_functions import get_shape_matrix, run_sim, get_node_coordinates
+from simulation_functions import get_shape_matrix, get_node_coordinates
 
 
 ## 1536 well plate
@@ -41,7 +43,32 @@ def laplace(x):
 
     return np.matmul(A,x.flatten()).reshape(x.shape)
 
+def run_sim(indices, receiver_coords, thresholds, logic_gates, activations):
 
+
+    ind0, ind1, ind2 = indices
+    simulator = DigitalSimulator(conc, environment_size, w, dt, laplace=laplace)
+    simulator.bound = bound
+    inputs_diff = np.any(ind0 != ind1) and np.any(ind1 != ind2) and np.any(ind0 != ind2)
+    corners = [[0, 0], [0, max_ind-1], [max_ind-1, 0],
+               [max_ind-1, max_ind-1]]  # cant put IPTG in the corners of the allowable square
+
+
+    on_corner = np.any(list(np.all(i == j) for i in corners for j in indices))
+    ti = time.time()
+    if inputs_diff and not on_corner:
+        coords = np.array(
+            [[start_coords + ind0 * points_per_well], [start_coords + ind1 * points_per_well], [start_coords + ind2 * points_per_well]]).reshape(3, 2)
+
+        score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords, thresholds,
+                                                                             logic_gates, activations, test_t=-1)
+    else:
+        coords = -1
+        score = -1
+        best_receiver_pos = -1
+        t = -1
+
+    return {'score':score, 'receiver_pos': best_receiver_pos, 'coords': coords, 't':t}
 
 
 
@@ -85,7 +112,7 @@ if __name__ == '__main__':
     receiver_coords = [receiver_coords] * len(activations)
     n_inputs = 3
     min_distance = 4.5
-    conc = 5
+    conc = 7.5/1000
 
     all_outputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
 
@@ -104,7 +131,7 @@ if __name__ == '__main__':
             all_indices.append(np.array([i, j]))
 
     pop_size = 1
-    n_gens = 0
+    n_gens = 10
     plot = False
 
     IPTG_is = np.random.choice(len(all_indices), size=(pop_size, 3)) # three inputs for each

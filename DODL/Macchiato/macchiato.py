@@ -56,7 +56,6 @@ def get_conflicting_constraints(truth_table):
                 if not check_constraints(inputs[i, :], inputs[j,:]):
                     violated.append('CONC')
 
-    print(relations)
     for i in range(len(relations)):
         for j in range(len(relations)):
             r = relations[i]
@@ -328,7 +327,7 @@ def can_move(truth_table, frm, to):
     if can_swap: # now check new table doesnt violated any higher order constraints
         test = move(truth_table, frm, to)
         conflicts = get_conflicting_constraints(test)
-        #can_swap = can_swap and len(conflicts) == 0
+        can_swap = can_swap and len(conflicts) == 0
 
 
     return can_swap
@@ -606,7 +605,7 @@ def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority
 
         obj, _, truth_table = truth_tables.get(block = False)  # BFS or DFS depending on this line
 
-        if obj < objective(best_table) and len(get_conflicting_constraints(truth_table))==0:
+        if obj < objective(best_table) and len(get_conflicting_constraints(truth_table)) == 0:
             best_table = truth_table
 
 
@@ -753,8 +752,8 @@ def macchiato_v2(outputs, max_queue_size = 0):
     :return:
     '''
     priorities = ['top', 'bot'] #{-1: 0, 0: 1, 1: 94, 2: 158, 3: 3, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
-    #priorities = [] #{-1: 0, 0: 1, 1: 94, 2: 149, 3: 12, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
-    priorities = ['end', 'top', 'bot'] #{-1: 0, 0: 1, 1: 151, 2: 104, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
+    priorities = [] #{-1: 0, 0: 1, 1: 94, 2: 149, 3: 12, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
+    #priorities = ['end', 'top', 'bot'] #{-1: 0, 0: 1, 1: 151, 2: 104, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
 
     round = 0
     tables = []
@@ -884,8 +883,6 @@ parser.add_argument('--outpath', type=str, help='the filepath to save output in,
 # TODO:: add activation function choice as input
 if __name__ == '__main__':
     args = parser.parse_args()
-
-
     try:
         outputs = np.array(list(args.outputs[0]), dtype=np.str)
 
@@ -922,7 +919,9 @@ if __name__ == '__main__':
     print('VIOLATED CONSTRAINTS')
     all_conflicts = [get_conflicting_constraints(best_table) for best_table in best_tables]
     for conflicts in all_conflicts:
+        print(len(conflicts))
         for c in conflicts:
+            pass
             print(np.array(c).tolist()[0])
     print()
 
@@ -934,8 +933,6 @@ if __name__ == '__main__':
 
     print(get_blocks(best_tables[0])[0])
     sys.exit()
-
-
 
     colonies = get_activations(best_table)
     print(colonies)

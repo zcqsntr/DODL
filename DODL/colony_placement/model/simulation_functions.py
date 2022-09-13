@@ -149,29 +149,3 @@ def get_shape_matrix(n, m, r):
 
     return A, sten
 
-def run_sim(indices, receiver_coords, thresholds, logic_gates, activations):
-
-
-    ind0, ind1, ind2 = indices
-    simulator = DigitalSimulator(conc, environment_size, w, dt, laplace=laplace)
-    simulator.bound = bound
-    inputs_diff = np.any(ind0 != ind1) and np.any(ind1 != ind2) and np.any(ind0 != ind2)
-    corners = [[0, 0], [0, max_ind-1], [max_ind-1, 0],
-               [max_ind-1, max_ind-1]]  # cant put IPTG in the corners of the allowable square
-
-
-    on_corner = np.any(list(np.all(i == j) for i in corners for j in indices))
-    ti = time.time()
-    if inputs_diff and not on_corner:
-        coords = np.array(
-            [[start_coords + ind0 * points_per_well], [start_coords + ind1 * points_per_well], [start_coords + ind2 * points_per_well]]).reshape(3, 2)
-
-        score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords, thresholds,
-                                                                             logic_gates, activations, test_t=-1)
-    else:
-        coords = -1
-        score = -1
-        best_receiver_pos = -1
-        t = -1
-
-    return {'score':score, 'receiver_pos': best_receiver_pos, 'coords': coords, 't':t}

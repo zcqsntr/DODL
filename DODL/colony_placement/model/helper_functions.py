@@ -28,6 +28,7 @@ def hill(s, K, lam):
 def ficks(s, w, laplace = False):
     if not laplace: # if no custom laplace given then use default square boundary conds
         return(lp(s) / np.power(w, 2))
+        #return(lp(s, mode = 'nearest') / np.power(w, 2))
     else:
         return (laplace(s) / np.power(w, 2))
 

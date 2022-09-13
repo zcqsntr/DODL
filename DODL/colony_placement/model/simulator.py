@@ -73,10 +73,6 @@ class DigitalSimulator():
 
         inactive_thr, active_thr = thresholds
 
-
-
-
-
         logic_area = np.ones(self.environment_size)  # start off as all ones and eliminate
         logic_area[np.where(self.bound == -1)] = 0 # only look in the circular plate
 
@@ -140,14 +136,11 @@ class DigitalSimulator():
         '''
         max_r = 0
         labels, n = sn.label(logic_area)  # find and label blobs
-
-
         best_pos = [0, 0]
         maxmin_r = 0
         for i in range(n):  # for each area
 
             pos_inside, edge_indices = self.get_opentron_pos_within_area(labels, i+1, inducer_coords)
-
             if len(pos_inside) > 0:
 
                 for pos in pos_inside:  # maximum over positions

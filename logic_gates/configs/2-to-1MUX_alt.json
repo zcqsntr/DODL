@@ -1,1 +1,1 @@
-{"receiver_inds": [[1,2], [3,4]], "IPTG_inds": [[4,5],[3,0], [3,4]], "activations": ["TH", "BP"]}
+{"receiver_inds": [[1,2], [3,4]], "IPTG_inds": [[5,4],[3,0], [3,4]], "activations": ["TH", "BP"]}
