@@ -30,7 +30,7 @@ plate_width = 35
 w = plate_width / environment_size[0] # inter-well spacing in mm
 w = 0.9
 points_per_well = int(4.5/w)
-conc = 5
+conc = 7.5/1000
 
 
 #activations = [['TH']]
@@ -73,7 +73,7 @@ def run_sim(indices, receiver_coords, thresholds, logic_gates, activations):
 
 
 parser = argparse.ArgumentParser(description='Run the colony placement algorithm')
-parser.add_argument('in_path', metavar='T', type=str, nargs=1, help='the path of the saved output from macchiato')
+parser.add_argument('in_path', metavar='in_path', type=str, nargs=1, help='the path of the saved output from macchiato')
 parser.add_argument('--outpath', type=str, help='the filepath to save output in, default is colony_placement/output')
 
 if __name__ == '__main__':

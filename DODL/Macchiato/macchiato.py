@@ -932,9 +932,10 @@ if __name__ == '__main__':
 
 
     print(get_blocks(best_tables[0])[0])
-    sys.exit()
 
-    colonies = get_activations(best_table)
+    sys.exit()
+    #TODO: fix below here
+    colonies = get_activations(best_tables)
     print(colonies)
     print('Colony mapping: ')
     new_colonies = {}

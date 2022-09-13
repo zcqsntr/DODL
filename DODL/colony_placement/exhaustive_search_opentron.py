@@ -27,7 +27,7 @@ w = 0.9
 
 points_per_well = int(4.5/w)
 
-conc = 5
+conc = 7.5/1000
 activations = ['TH']
 thresholds = [[3,3]]
 #thresholds = [[3,3], [1,1]]
