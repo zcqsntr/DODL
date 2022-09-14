@@ -15,5 +15,6 @@ optional arguments:
 ### Examples 
 ```
 python design_logic_gates.py ../Macchiato/output/00011011.json
-python simulate_plot.py ../colony_placement/output/placement.json
+python simulate_plot.py --in_file ../colony_placement/output/placement.json --field 0
+
 ```

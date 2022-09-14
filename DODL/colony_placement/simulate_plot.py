@@ -20,7 +20,7 @@ import time
 import argparse
 import json
 
-from simulation_functions import get_shape_matrix, run_sim, get_node_coordinates
+from simulation_functions import get_shape_matrix, get_node_coordinates
 
 
 parser = argparse.ArgumentParser(description='Simulate and plot a given placement')
