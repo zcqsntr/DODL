@@ -99,9 +99,9 @@ if __name__ == '__main__':
         for lg in macchiato_results['logic_gates'][act]:
             activations.append(act)
             if act == 'BP':
-                thresholds.append([1,1])
+                thresholds.append([5,5])
             elif act == 'TH':
-                thresholds.append([3,3])
+                thresholds.append([5,5])
             logic_gates.append(lg)
 
     print(activations, logic_gates, thresholds)
