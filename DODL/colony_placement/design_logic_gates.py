@@ -56,6 +56,8 @@ def run_sim(indices, receiver_coords, thresholds, logic_gates, activations):
     if inputs_diff and not on_corner:
         coords = np.array(
             [[start_coords + ind * points_per_well] for ind in IPTG_inds]).reshape(-1, 2)
+        # coords = np.array(
+        #     [[start_coords + ind0 * points_per_well], [start_coords + ind1 * points_per_well], [start_coords + ind2 * points_per_well]]).reshape(3, 2)
 
         score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords, thresholds,
                                                                              logic_gates, activations, test_t=-1)
@@ -118,15 +120,15 @@ if __name__ == '__main__':
     max_coords = np.array([[0, 0]])
 
     max_t = -1
-    start_coords = np.array([[2, 7]])
+    start_coords = np.array([[2, 2]])
 
     all_indices = []
     max_ind = 8
     dt = 60 * 20  # sample time of simulations in minutes
 
-#     for i in range(max_ind):
-#         for j in range(max_ind):
-#             all_indices.append(np.array([i, j]))
+    # for i in range(max_ind):
+    #     for j in range(max_ind):
+    #         all_indices.append(np.array([i, j]))
     """
     only coordinates inside circle are included
     """
@@ -139,8 +141,6 @@ if __name__ == '__main__':
                 all_indices.append(np.array([max_ind - 1 - i, j]))
                 all_indices.append(np.array([i, max_ind - 1 - j]))
                 all_indices.append(np.array([max_ind - 1 - i, max_ind - 1 - j]))
-
-
 
             elif distance - max_ind / 2 <= (2 ** (1 / 2)) / 2:
                 if ((i - max_ind / 2) ** 2 + (j + 1 - max_ind / 2) ** 2) ** (1 / 2) - max_ind / 2 <= (2 ** (1 / 2)) / 2 or (

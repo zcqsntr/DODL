@@ -198,7 +198,7 @@ if __name__ == '__main__':
 
     IPTG_inds = np.array(data['IPTG_inds'])
     n_inputs = len(data['IPTG_inds'])
-    start_coords = np.array([[2, 7]])  # this is a,1 on opentron top left well
+    start_coords = np.array([[2, 2]])  # this is a,1 on opentron top left well
 
     inducer_coords = np.array(
         [[start_coords + ind * points_per_well] for ind in IPTG_inds]).reshape(-1, 2)
@@ -219,8 +219,8 @@ if __name__ == '__main__':
     for i, coord in enumerate(inducer_coords):
         grid[coord[0], coord[1]] = i + 1
 
-        for j, rc in enumerate(receiver_coords):
-            grid[rc[:, 0], rc[:, 1]] = i + j + 2
+    for j, rc in enumerate(receiver_coords):
+        grid[rc[:, 0], rc[:, 1]] = i + j + 2
 
     im = plt.imshow(grid)
     plt.colorbar(im)
