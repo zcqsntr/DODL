@@ -310,7 +310,7 @@ def covers_from_blocks(blocks):
     return np.vstack((start_pos, sizes, scores)).T
 
 
-def can_move(truth_table, frm, to):
+def can_move(truth_table, frm, to, higher_order = True):
     # checks if a state can be moved from a to b based on the AHL concentration constraints
 
     # if frm < to then to be able to move the state must be able to swap above all states between frm and to
@@ -324,13 +324,15 @@ def can_move(truth_table, frm, to):
         for i in range(to, frm):
             can_swap = can_swap and check_constraints(truth_table[frm, :-1], truth_table[i, :-1])
 
-    if can_swap: # now check new table doesnt violated any higher order constraints
+    if can_swap and higher_order: # now check new table doesnt violate any higher order constraints
         test = move(truth_table, frm, to)
         conflicts = get_conflicting_constraints(test)
         can_swap = can_swap and len(conflicts) == 0
 
 
     return can_swap
+
+
 
 
 def move(truth_table, frm, to):
@@ -424,8 +426,9 @@ def group_inputs(truth_table):
     for i in range(n_inputs + 1):
         n_states = int(math.factorial(n_inputs) / (math.factorial(i) * math.factorial(n_inputs - i)))
         group = truth_table[counter:counter + n_states]
-        #sorted_group = group[np.argsort([group[:, -1]])]
-        input_groups.append(group)
+        sorted_group = group[np.argsort([group[:, -1]])]
+
+        input_groups.append(sorted_group[0])
         counter += n_states
     return input_groups
 
@@ -448,7 +451,7 @@ def get_possible_flips(input_groups):
     return output_blocks, flips, flippable
 
 
-def find_best_flips(input_groups, output_blocks, flips, flippable):
+def find_best_flips(input_groups, output_blocks, flips, flippable, higher_order = False):
     # no go through each flip combination and find the one with the smallest number of blocks
 
     min_blocks = count_output_blocks(output_blocks)
@@ -468,7 +471,7 @@ def find_best_flips(input_groups, output_blocks, flips, flippable):
 
         new_table = flip_table(input_groups, flip_comb, flippable)
 
-        if n_blocks < min_blocks and len(get_conflicting_constraints(new_table)) == 0:  # and no contraints violated
+        if n_blocks < min_blocks and (not higher_order or len(get_conflicting_constraints(new_table)) == 0):  # and no contraints violated
 
             best_flip_comb = list(copy.deepcopy(flip_comb))
             min_blocks = n_blocks
@@ -486,7 +489,7 @@ def flip_table(input_groups, best_flip_comb, flippable):
 
     return new_table
 
-def rough_optimisation(truth_table):
+def rough_optimisation(truth_table, higher_order = True):
     '''
     optimises based on matching the 0s and ones between the different numbers of inputs, gives a really good starting point
     for earl grey to do the final bit of opt
@@ -494,19 +497,18 @@ def rough_optimisation(truth_table):
 
     truth_table = sort_truth_table(truth_table)
 
-
     input_groups = group_inputs(truth_table)
-
 
     output_blocks, flips, flippable = get_possible_flips(input_groups)
 
-    best_flip_comb, min_blocks = find_best_flips(input_groups, output_blocks, flips, flippable)
+    best_flip_comb, min_blocks = find_best_flips(input_groups, output_blocks, flips, flippable, higher_order=higher_order)
 
     new_table = flip_table(input_groups, best_flip_comb, flippable)
 
     if len(get_conflicting_constraints(truth_table)) > 0:
         print('CONFLICTS')
     return new_table, min_blocks
+
 
 
 def hash_table(truth_table):
@@ -536,7 +538,10 @@ def greedy_obj(truth_table, priority = None):
     elif priority == 'bot' and truth_table[0, -1] in [1,2]:
         return -covers[0, 2]
     else:
-        return -np.max(covers[:, 2])
+        scores = list(covers[:, 2])
+        if truth_table[0, -1] in [1,2] and truth_table[-1, -1] in [1, 2]:
+            scores.append((covers[0, 2] + covers[-1, 2]))
+        return -np.max(scores)
 
 def check_top_move(truth_table, frm):
     # checks if the input state at index frm can be moved into the top block
@@ -579,9 +584,7 @@ def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority
     n_inputs = int(np.log2(outputs.size))
     truth_table = create_truth_table(outputs)
 
-
-
-    #truth_table, _ = rough_optimisation(truth_table)
+    #truth_table, _ = rough_optimisation(truth_table, hgi)
     discovered_tables = {hash_table(truth_table)} # use a set for this
 
     blocks, n_ones = get_blocks(truth_table)
@@ -592,10 +595,13 @@ def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority
 
     truth_tables.put((obj, len(discovered_tables), truth_table), block = False)
     best_table = truth_table
-
+    '''
     if -objective(best_table) == np.sum(best_table[:, -1][best_table[:,
                                                           -1] == 1]):  # early exit condition if all ones are contributing to the objective
+        print('len:', len(discovered_tables))
         return best_table
+    '''
+
 
 
     while not truth_tables.empty():
@@ -605,12 +611,16 @@ def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority
 
         obj, _, truth_table = truth_tables.get(block = False)  # BFS or DFS depending on this line
 
+
+
         if obj < objective(best_table) and len(get_conflicting_constraints(truth_table)) == 0:
             best_table = truth_table
 
-
+            '''
             if -objective(best_table) == np.sum(best_table[:, -1][best_table[:, -1] == 1]): # early exit condition if all ones are contributing to the objective
+         
                 return best_table
+            '''
         blocks, _ = get_blocks(truth_table)
 
 
@@ -653,6 +663,7 @@ def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority
                                 truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block=False)
                             except Exception as e: # queue is full
                                 pass
+    print('len:', len(discovered_tables))
 
     return best_table
 
@@ -744,15 +755,15 @@ def heuristic_search(outputs, objective=least_blocks_obj, max_queue_size=0):
 
     return best_table
 
-def macchiato_v2(outputs, max_queue_size = 0):
+def macchiato_v2(outputs,priorities = ['end', 'top', 'bot'], max_queue_size = 0):
     '''
     Does the iterative graph search to distribute over multiple colonies in different positions
     :param outputs:
     :param max_queue_size:
     :return:
     '''
-    priorities = ['top', 'bot'] #{-1: 0, 0: 1, 1: 94, 2: 158, 3: 3, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
-    priorities = [] #{-1: 0, 0: 1, 1: 94, 2: 149, 3: 12, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
+    #priorities = ['top', 'bot'] #{-1: 0, 0: 1, 1: 94, 2: 158, 3: 3, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
+    #priorities = [] #{-1: 0, 0: 1, 1: 94, 2: 149, 3: 12, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
     #priorities = ['end', 'top', 'bot'] #{-1: 0, 0: 1, 1: 151, 2: 104, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
 
     round = 0
@@ -785,7 +796,14 @@ def macchiato_v2(outputs, max_queue_size = 0):
             covered = [covers[0]]
         else:
             #print('mid')
+
             covered = [covers[np.argmax(covers[:,2])]]
+
+            if truth_table[0, -1] in [1] and truth_table[-1, -1] in [1] and (covers[0, 2] + covers[-1, 2]) > np.max(covers[:,2]):
+                covered = [covers[0], covers[-1]]
+
+
+        print(covers)
 
 
         for cov in covered:
@@ -796,15 +814,12 @@ def macchiato_v2(outputs, max_queue_size = 0):
 
     return tables
 
-def macchiato(outputs):
-    n_inputs = int(np.log2(outputs.size))
+def macchiato(outputs, higher_order = False):
+
     truth_table = create_truth_table(outputs)
-    truth_table,_ = rough_optimisation(truth_table)
+    truth_table,_ = rough_optimisation(truth_table, higher_order=higher_order)
 
-    current_table = copy.deepcopy(truth_table)
     current_table = truth_table
-
-    will_exit = True
 
 
     finished = False
@@ -819,8 +834,6 @@ def macchiato(outputs):
         # each block of ones is a cover, try and maximise each cover in turn, starting from largest cover
         cov_sort = np.argsort(covers[:, 1])  # this will bias towards states in the middle, probably not what we want
 
-
-        test_table = copy.deepcopy(current_table)
 
         for index in cov_sort:
             # get smallest cover
@@ -852,7 +865,7 @@ def macchiato(outputs):
                 # go through oes and put as many into the lower cover as possible
                 for i, state in enumerate(range(small_start, small_end)):
 
-                    if can_move(test_table, state, lower_cover[0] + lower_cover[1] + i):
+                    if can_move(test_table, state, lower_cover[0] + lower_cover[1] + i, higher_order=higher_order):
                         test_table = move(test_table, state, lower_cover[0] + lower_cover[1] + i)
                         smallest_cover[0] += 1
                         smallest_cover[1] -=1
@@ -862,7 +875,7 @@ def macchiato(outputs):
 
             if higher_cover is not None:
                 for i, state in enumerate(range(small_start, small_end)[::-1]):
-                    if can_move(test_table, state, higher_cover[0] - i - 1):
+                    if can_move(test_table, state, higher_cover[0] - i - 1, higher_order=higher_order):
                         test_table = move(test_table, state, higher_cover[0] - i - 1)
                         smallest_cover[1] -= 1
 

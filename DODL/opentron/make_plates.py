@@ -8,7 +8,7 @@ import numpy as np
 import itertools
 import math
 from PIL import Image, ImageDraw
-
+from PIL import ImageFont, ImageDraw
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -107,14 +107,14 @@ def draw_blank_plate(scale):
     im = Image.new('RGB', tuple((plate_dim + np.array([3,3])) * scale), color=(255, 255, 255))
 
     draw = ImageDraw.Draw(im)
-
+    fnt = ImageFont.truetype('/Library/Fonts/Arial unicode.ttf', int(scale/2))
     # draw the wells
     for x in range(plate_dim[0]):
         for y in range(plate_dim[1]):
             if y == 0:
-                draw.text(((x + 1.25) * scale, (y + 0.5) * scale), str(x + 1), fill='black')
+                draw.text(((x + 1.25) * scale, (y + 0.5) * scale), str(x + 1), fill='black', font = fnt)
             if x == 0:
-                draw.text(((x + 0.5) * scale, (y + 1.25) * scale), chr(ord('@') + y + 1), fill='black')
+                draw.text(((x + 0.5) * scale, (y + 1.25) * scale), chr(ord('@') + y + 1), fill='black', font = fnt)
             draw.rectangle((((x + 1) * scale + scale/10, (y + 1) * scale + scale/10), ((x + 2) * scale -scale/10, (y + 2) * scale -scale/10)),
                            fill=(255, 255, 255), outline=(0, 0, 0) , width=1)
     # draw the circles on
@@ -138,18 +138,18 @@ def draw_wells(plate_draw, wells, colour, scale):
                        fill=colour, outline=(0, 0, 0), width=2)
 
 def draw_plates(plates, out_dir):
-    scale = 20
+    scale = 30
     for p,plate in enumerate(plates):
         im = draw_blank_plate(scale)
         draw = ImageDraw.Draw(im)
 
-        draw_wells(draw, plate['BP'], (187, 161, 205), 20)
-        draw_wells(draw, plate['TH'], (59, 140, 53), 20)
-        draw_wells(draw, plate['IPTG'], (55, 73, 153), 20)
+        draw_wells(draw, plate['BP'], (187, 161, 205), scale)
+        draw_wells(draw, plate['TH'], (59, 140, 53), scale)
+        draw_wells(draw, plate['IPTG'], (55, 73, 153), scale)
 
 
 
-        im.save(os.path.join(out_dir, 'plate{}.png'.format(p)))
+        im.save(os.path.join(out_dir, 'plate{}.pdf'.format(p)))
 
 
 parser = argparse.ArgumentParser(description='Produce plate configurations for the opentron from colony placements ')

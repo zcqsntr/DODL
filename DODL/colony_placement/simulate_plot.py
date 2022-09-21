@@ -206,9 +206,6 @@ if __name__ == '__main__':
     IPTG_inds = np.array(data['IPTG_inds'])
     activations = data['activations']
 
-
-
-
     A, bound = get_shape_matrix(environment_size[0], environment_size[1], environment_size[0] // 2)
 
     def laplace(x):

@@ -39,6 +39,8 @@ conc = 7.5/1000
 
 A, bound = get_shape_matrix(environment_size[0], environment_size[1], environment_size[0]//2)
 
+
+
 def laplace(x):
 
     return np.matmul(A,x.flatten()).reshape(x.shape)
@@ -57,8 +59,7 @@ def run_sim(indices, receiver_coords, thresholds, logic_gates, activations):
     on_corner = np.any(list(np.all(i == j) for i in corners for j in indices))
     ti = time.time()
     if inputs_diff and not on_corner:
-        coords = np.array(
-            [[start_coords + ind0 * points_per_well], [start_coords + ind1 * points_per_well], [start_coords + ind2 * points_per_well]]).reshape(3, 2)
+        coords = np.array([[start_coords + ind * points_per_well] for ind in IPTG_inds]).reshape(-1, 2)
 
         score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords, thresholds,
                                                                              logic_gates, activations, test_t=-1)
@@ -120,17 +121,17 @@ if __name__ == '__main__':
     max_coords = np.array([[0, 0]])
 
     max_t = -1
-    start_coords = np.array([[7, 7]])
+    start_coords = np.array([[2, 7]])
 
     all_indices = []
-    max_ind = 6
+    max_ind = 8
     dt = 60 * 20  # sample time of simulations in minutes
 
     for i in range(max_ind):
         for j in range(max_ind):
             all_indices.append(np.array([i, j]))
 
-    pop_size = 1
+    pop_size = 100
     n_gens = 10
     plot = False
 
@@ -150,9 +151,6 @@ if __name__ == '__main__':
         # 3 GFP
 
         ti = time.time()
-
-
-
         indices = IPTG_inds
 
         pool = Pool(5)
@@ -175,7 +173,6 @@ if __name__ == '__main__':
         print('simulation:', time.time() - ti)
 
         ind = np.argsort(scores)[::-1]
-
         scores = scores[ind]
         IPTG_inds = IPTG_inds[ind]
         simulated = simulated[ind]
