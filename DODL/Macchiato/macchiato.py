@@ -531,11 +531,11 @@ def greedy_obj(truth_table, priority = None):
 
     if len(covers)==0:
         return 0
-    elif priority == 'end' and truth_table[0, -1] in [1,2] and truth_table[-1, -1] in [1, 2]:
+    elif priority == 'IB' and truth_table[0, -1] in [1,2] and truth_table[-1, -1] in [1, 2]:
         return -(covers[0, 2] + covers[-1, 2])
-    elif priority == 'top' and truth_table[-1, -1] in [1,2]:
+    elif priority == 'TH' and truth_table[-1, -1] in [1,2]:
         return -covers[-1, 2]
-    elif priority == 'bot' and truth_table[0, -1] in [1,2]:
+    elif priority == 'IT' and truth_table[0, -1] in [1,2]:
         return -covers[0, 2]
     else:
         scores = list(covers[:, 2])
@@ -755,7 +755,7 @@ def heuristic_search(outputs, objective=least_blocks_obj, max_queue_size=0):
 
     return best_table
 
-def macchiato_v2(outputs,priorities = ['end', 'top', 'bot'], max_queue_size = 0):
+def macchiato_v2(outputs,priorities = ['IB', 'TH', 'IT', 'BP'], max_queue_size = 0):
     '''
     Does the iterative graph search to distribute over multiple colonies in different positions
     :param outputs:
@@ -785,22 +785,26 @@ def macchiato_v2(outputs,priorities = ['end', 'top', 'bot'], max_queue_size = 0)
         covers = covers_from_blocks(blocks)
 
         # put the states covered by this round in the dont care set
-        if priority == 'end' and truth_table[0, -1] in [1] and truth_table[-1, -1] in [1]:
+        if priority == 'IB' and truth_table[0, -1] in [1] and truth_table[-1, -1] in [1]:
             #print('end')
             covered = [covers[0], covers[-1]]
-        elif priority == 'top' and truth_table[-1, -1] in [1]:
+        elif priority == 'TH' and truth_table[-1, -1] in [1]:
             #print('top')
             covered = [covers[-1]]
-        elif priority == 'bot' and truth_table[0, -1] in [1]:
+        elif priority == 'IT' and truth_table[0, -1] in [1]:
             #print('bot')
             covered = [covers[0]]
-        else:
+        elif 'BP' in priorities:
             #print('mid')
 
             covered = [covers[np.argmax(covers[:,2])]]
 
             if truth_table[0, -1] in [1] and truth_table[-1, -1] in [1] and (covers[0, 2] + covers[-1, 2]) > np.max(covers[:,2]):
                 covered = [covers[0], covers[-1]]
+
+        else: # if nothing covered and then gate isnt possible
+            return []
+
 
 
         print(covers)
@@ -838,15 +842,9 @@ def macchiato(outputs, higher_order = False):
         for index in cov_sort:
             # get smallest cover
             smallest_cover = covers[index]
-
-
             small_start = smallest_cover[0]
             small_end = smallest_cover[0] + smallest_cover[1]
-
-
             # try and eliminate smallest cover by puttin gones into the covers on either side
-
-
             if index > 0:
                 lower_cover = covers[index -1]
             else:

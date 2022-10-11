@@ -8,8 +8,6 @@ from species import Species
 import math
 
 def gompertz(t, A, um, lam):
-
-
     return A* np.exp(-np.exp((um*np.e)/A*(lam - t) +1))
 
 

@@ -39,8 +39,6 @@ conc = 7.5/1000
 
 A, bound = get_shape_matrix(environment_size[0], environment_size[1], environment_size[0]//2)
 
-
-
 def laplace(x):
 
     return np.matmul(A,x.flatten()).reshape(x.shape)
