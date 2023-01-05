@@ -14,7 +14,63 @@ def gompertz(t, A, um, lam):
 def dgompertz(t, A, um, lam):
     return um * np.exp(um*(np.e*lam -np.e*t)/A - np.exp(um*(np.e*lam-np.e*t)/A +1) + 2) #1e8 to convert from OD to cells per grid point
 
+def load_data(filepath):
+    # dictionary structure: time_courses = dict[spot_concentration][distance]
+    observed_wells = []  # to keep track of when we start a new repeat
 
+    data = {}
+    with open(filepath) as file:
+        file.readline()
+        for i, line in enumerate(file):
+            line = line.split(',')
+
+            time_point = int(line[21]) #* 20.0  # each timepoint is 20mins
+            flouresence = float(line[36])
+            IPTG_conc = float(line[18])
+            distance = round(float(line[16]), 1)
+            absorbance = float(line[20]) # for growth
+            replicate = int(line[19]) -1
+
+
+
+
+
+            try:
+                if time_point <= 69:
+                    data[IPTG_conc][distance]['GFP'][replicate].append(flouresence)
+                    data[IPTG_conc][distance]['absorbance'][replicate].append(absorbance)
+            except Exception as e:
+
+                try:
+
+                    data[IPTG_conc][distance]['GFP'] = [[], [], []] #three replicates
+                    data[IPTG_conc][distance]['absorbance'] = [[], [], []]
+                    data[IPTG_conc][distance]['GFP'][replicate].append(flouresence)
+                    data[IPTG_conc][distance]['absorbance'][replicate].append(absorbance)
+                except Exception as e:
+
+
+                    try:
+                        data[IPTG_conc][distance] = {}
+                        data[IPTG_conc][distance]['GFP'] = [[], [], []]  # three replicates
+                        data[IPTG_conc][distance]['absorbance'] = [[], [], []]
+                        data[IPTG_conc][distance]['GFP'][replicate].append(flouresence)
+                        data[IPTG_conc][distance]['absorbance'][replicate].append(absorbance)
+                    except:
+                        data[IPTG_conc] = {}
+                        data[IPTG_conc][distance] = {}
+                        data[IPTG_conc][distance]['GFP'] = [[], [], []]  # three replicates
+                        data[IPTG_conc][distance]['absorbance'] = [[], [], []]
+                        data[IPTG_conc][distance]['GFP'][replicate].append(flouresence)
+                        data[IPTG_conc][distance]['absorbance'][replicate].append(absorbance)
+
+            #print(time_point, flouresence, IPTG_conc, distance, absorbance, replicate, data[IPTG_conc][distance]['GFP'][replicate])
+
+            if time_point <= 69 and time_point != len(data[IPTG_conc][distance]['GFP'][replicate]):
+
+                #print(time_point, len(data[IPTG_conc][distance]['GFP'][replicate]), data[IPTG_conc][distance]['GFP'][replicate])
+                raise Exception("Time point and time index out of sync")
+    return data
 def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environment_size, w, dx, laplace = False, bandpass = False, fitting = False):
 
 

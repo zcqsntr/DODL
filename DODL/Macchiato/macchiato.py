@@ -525,23 +525,79 @@ def least_blocks_obj(truth_table):
     blocks, n_ones = get_blocks(truth_table)
     return n_ones
 
-def greedy_obj(truth_table, priority = None):
+def greedy_obj(truth_table, allowed_acts = None):
     blocks, n_ones = get_blocks(truth_table)
     covers = covers_from_blocks(blocks)
-
-    if len(covers)==0:
+    scores = [0]
+    if len(covers) == 0:
         return 0
-    elif priority == 'IB' and truth_table[0, -1] in [1,2] and truth_table[-1, -1] in [1, 2]:
-        return -(covers[0, 2] + covers[-1, 2])
-    elif priority == 'TH' and truth_table[-1, -1] in [1,2]:
-        return -covers[-1, 2]
-    elif priority == 'IT' and truth_table[0, -1] in [1,2]:
-        return -covers[0, 2]
-    else:
-        scores = list(covers[:, 2])
-        if truth_table[0, -1] in [1,2] and truth_table[-1, -1] in [1, 2]:
+
+    if 'IB' in allowed_acts and truth_table[0, -1] in [1,2]:
+        if truth_table[-1, -1] in [1, 2]:
             scores.append((covers[0, 2] + covers[-1, 2]))
-        return -np.max(scores)
+        else:
+            scores.append(covers[0, 2])
+    if 'TH' in allowed_acts  and truth_table[-1, -1] in [1,2]:
+        scores.append(covers[-1, 2])
+    if 'IT' in allowed_acts and truth_table[0, -1] in [1,2]:
+        scores.append(covers[0, 2])
+    if 'BP' in allowed_acts:
+        s = list(covers[:, 2])
+
+        if truth_table[0, -1] in [1, 2]:
+            s = s[1:]
+        scores.extend(s)
+
+
+    return -np.max(scores)
+
+
+def get_covered(truth_table, allowed_acts = ['TH', 'IT', 'IB', 'BP']):
+    blocks, n_ones = get_blocks(truth_table)
+    covers = covers_from_blocks(blocks)
+    if len(covers) == 0:
+        return []
+
+    allowed_covers = []
+    covering_receivers = []
+
+
+    if 'TH' in allowed_acts and truth_table[-1, -1] in [1, 2]:
+        allowed_covers.append(covers[-1])
+        covering_receivers.append('TH')
+
+    if 'BP' in allowed_acts:
+        if truth_table[0, -1] in [1, 2]:
+            c = covers[1:]
+        else:
+            c = covers
+        allowed_covers.extend(c)
+        covering_receivers.extend(['BP']*len(c))
+
+    if 'IT' in allowed_acts and truth_table[0, -1] in [1, 2]:
+        allowed_covers.append(covers[0])
+        covering_receivers.append('IT')
+
+
+    if 'IB' in allowed_acts and truth_table[0, -1] in [1, 2]:
+
+        if truth_table[0, -1] in [1] and truth_table[-1, -1] in [1] and (covers[0, 2] + covers[-1, 2]) > np.max(covers[:, 2]): # if inverse bandpass is the best option
+            return [covers[0], covers[-1]], 'IB'
+        else:
+            allowed_covers.append(covers[0])
+            covering_receivers.append('IB')
+
+    if len(allowed_covers) == 0:
+        return [], 'NA'
+
+    allowed_covers = np.array(allowed_covers)
+    covering_receivers = np.array(covering_receivers)
+
+    covered = [allowed_covers[np.argmax(allowed_covers[:, 2])]]
+    covering_receiver = [covering_receivers[np.argmax(allowed_covers[:, 2])]]
+
+    return covered, covering_receiver
+
 
 def check_top_move(truth_table, frm):
     # checks if the input state at index frm can be moved into the top block
@@ -573,7 +629,101 @@ def check_bot_move(truth_table, frm):
 
 
 
-def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority = None):
+def graph_search(truth_table, objective=least_blocks_obj, max_queue_size=0):
+    '''
+    :param outputs:
+    :param max_queue_size:
+    :param objective:  the function that is to be minimised by the graph search, takes a truth table and outputs a scalar
+    :return:
+    '''
+
+
+
+
+
+    #truth_table, _ = rough_optimisation(truth_table, hgi)
+    discovered_tables = {hash_table(truth_table)} # use a set for this
+
+
+    obj = objective(truth_table)
+
+    truth_tables = qu.PriorityQueue(maxsize=max_queue_size)
+
+    truth_tables.put((obj, len(discovered_tables), truth_table), block = False)
+    best_table = truth_table
+
+    if -objective(best_table) == np.sum(best_table[:, -1][best_table[:,
+                                                          -1] == 1]):  # early exit condition if all ones are contributing to the objective
+        print('len:', len(discovered_tables))
+        return best_table
+
+
+
+
+    while not truth_tables.empty():
+
+        #print(len(discovered_tables))
+        #print(truth_tables.qsize())
+
+        obj, _, truth_table = truth_tables.get(block = False)  # BFS or DFS depending on this line
+
+
+
+        if obj < objective(best_table) and len(get_conflicting_constraints(truth_table)) == 0:
+            best_table = truth_table
+
+
+            if -objective(best_table) == np.sum(best_table[:, -1][best_table[:, -1] == 1]): # early exit condition if all ones are contributing to the objective
+
+                return best_table
+
+        blocks, _ = get_blocks(truth_table)
+
+
+        indices = range(len(blocks))
+        for i in indices:  #we can never move the end states, only move other states into their blocks
+
+            block_start = np.sum(blocks[0:i, 1])
+            block_size = blocks[i, 1]
+
+            for s, state in enumerate(truth_table[block_start:block_start+block_size, :-1]): # for each state in the block
+
+                if block_start + s + 1 < len(truth_table) - 1 and block_start + s - 1 > 0:
+
+                    lower = truth_table[block_start+s -1, :-1]
+                    higher = truth_table[block_start + s + 1, :-1]
+
+                    if check_constraints(state, lower): #check if we can put state below
+
+                        new_truth_table = move(truth_table, s+block_start, s+block_start -1)
+                        new_obj = objective(new_truth_table)
+                        #if len(new_blocks) <= len(blocks) : #dont accept swaps that increase the number of blocks
+                        if hash_table(new_truth_table) not in discovered_tables:
+                            discovered_tables.add(hash_table(new_truth_table))
+                            try:
+                                truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block = False)
+                            except Exception as e: # queue is full
+                                pass
+
+
+                    if check_constraints(higher, state): #check if we can put state above
+
+                        new_truth_table = move(truth_table, s + block_start, s + block_start + 1)
+
+                        new_obj = objective(new_truth_table)
+
+                        #if len(new_blocks) <= len(blocks) :  # dont accpt swaps that increase the number of blocks
+                        if hash_table(new_truth_table) not in discovered_tables:
+                            discovered_tables.add(hash_table(new_truth_table))
+                            try:
+                                truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block=False)
+                            except Exception as e: # queue is full
+                                pass
+    print('len:', len(discovered_tables))
+
+    return best_table
+
+def heuristic_search(outputs, objective=least_blocks_obj, max_queue_size=0):
     '''
     :param outputs:
     :param max_queue_size:
@@ -595,12 +745,12 @@ def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority
 
     truth_tables.put((obj, len(discovered_tables), truth_table), block = False)
     best_table = truth_table
-    '''
+
     if -objective(best_table) == np.sum(best_table[:, -1][best_table[:,
                                                           -1] == 1]):  # early exit condition if all ones are contributing to the objective
         print('len:', len(discovered_tables))
         return best_table
-    '''
+
 
 
 
@@ -616,11 +766,11 @@ def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority
         if obj < objective(best_table) and len(get_conflicting_constraints(truth_table)) == 0:
             best_table = truth_table
 
-            '''
+
             if -objective(best_table) == np.sum(best_table[:, -1][best_table[:, -1] == 1]): # early exit condition if all ones are contributing to the objective
-         
+
                 return best_table
-            '''
+
         blocks, _ = get_blocks(truth_table)
 
 
@@ -667,95 +817,7 @@ def graph_search(outputs, objective=least_blocks_obj, max_queue_size=0, priority
 
     return best_table
 
-def heuristic_search(outputs, objective=least_blocks_obj, max_queue_size=0):
-    '''
-    :param outputs:
-    :param max_queue_size:
-    :param objective:  the function that is to be minimised by the graph search, takes a truth table and outputs a scalar
-    :return:
-    '''
-
-    n_inputs = int(np.log2(outputs.size))
-    truth_table = create_truth_table(outputs)
-
-
-
-    #truth_table, _ = rough_optimisation(truth_table)
-    discovered_tables = {hash_table(truth_table)} # use a set for this
-
-    blocks, n_ones = get_blocks(truth_table)
-
-    obj = objective(truth_table)
-
-    truth_tables = qu.PriorityQueue(maxsize=max_queue_size)
-
-    truth_tables.put((obj, len(discovered_tables), truth_table), block = False)
-    best_table = truth_table
-
-    if -objective(best_table) == np.sum(best_table[:, -1][best_table[:,
-                                                          -1] == 1]):  # early exit condition if all ones are contributing to the objective
-        return best_table
-
-
-    while not truth_tables.empty():
-
-        #print(len(discovered_tables))
-        #print(truth_tables.qsize())
-
-        obj, _, truth_table = truth_tables.get(block = False)  # BFS or DFS depending on this line
-
-        if obj < objective(best_table) and len(get_conflicting_constraints(truth_table))==0:
-            best_table = truth_table
-
-
-            if -objective(best_table) == np.sum(best_table[:, -1][best_table[:, -1] == 1]): # early exit condition if all ones are contributing to the objective
-                return best_table
-        blocks, _ = get_blocks(truth_table)
-
-
-        indices = range(len(blocks))
-        for i in indices:  #we can never move the end states, only move other states into their blocks
-
-            block_start = np.sum(blocks[0:i, 1])
-            block_size = blocks[i, 1]
-
-            for s, state in enumerate(truth_table[block_start:block_start+block_size, :-1]): # for each state in the block
-
-                if block_start + s + 1 < int(outputs.size)-1 and block_start + s - 1 > 0:
-
-                    lower = truth_table[block_start+s -1, :-1]
-                    higher = truth_table[block_start + s + 1, :-1]
-
-                    if check_constraints(state, lower): #check if we can put state below
-
-                        new_truth_table = move(truth_table, s+block_start, s+block_start -1)
-                        new_obj = objective(new_truth_table)
-                        #if len(new_blocks) <= len(blocks) : #dont accept swaps that increase the number of blocks
-                        if hash_table(new_truth_table) not in discovered_tables:
-                            discovered_tables.add(hash_table(new_truth_table))
-                            try:
-                                truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block = False)
-                            except Exception as e: # queue is full
-                                pass
-
-
-                    if check_constraints(higher, state): #check if we can put state above
-
-                        new_truth_table = move(truth_table, s + block_start, s + block_start + 1)
-
-                        new_obj = objective(new_truth_table)
-
-                        #if len(new_blocks) <= len(blocks) :  # dont accpt swaps that increase the number of blocks
-                        if hash_table(new_truth_table) not in discovered_tables:
-                            discovered_tables.add(hash_table(new_truth_table))
-                            try:
-                                truth_tables.put((new_obj, len(discovered_tables), new_truth_table), block=False)
-                            except Exception as e: # queue is full
-                                pass
-
-    return best_table
-
-def macchiato_v2(outputs,priorities = ['IB', 'TH', 'IT', 'BP'], max_queue_size = 0):
+def macchiato_v2(outputs,priorities = [], allowed_acts = ['TH', 'IT', 'IB', 'BP'], max_queue_size = 0):
     '''
     Does the iterative graph search to distribute over multiple colonies in different positions
     :param outputs:
@@ -768,47 +830,37 @@ def macchiato_v2(outputs,priorities = ['IB', 'TH', 'IT', 'BP'], max_queue_size =
 
     round = 0
     tables = []
+    receivers = []
+
+    truth_table = create_truth_table(outputs)
+
     while np.sum(outputs[outputs == 1]) > 0:
 
-        if round < len(priorities) - 1:
-            priority = priorities[round]
-            obj = lambda x: greedy_obj(x, priority=priority)
+        if len(priorities) > 0:
+            priority = priorities[0]
+            obj = lambda x: greedy_obj(x, allowed_acts=[priority])
         else:
-            obj = greedy_obj
+            obj = lambda x: greedy_obj(x, allowed_acts=allowed_acts)
             priority = None
 
-        truth_table = graph_search(outputs, objective=obj, max_queue_size=max_queue_size)
+        truth_table = graph_search(truth_table, objective=obj, max_queue_size=max_queue_size)
 
 
-        tables.append(copy.deepcopy(truth_table))
-        blocks, n_ones = get_blocks(truth_table)
-        covers = covers_from_blocks(blocks)
+        if priority is not None:
+            covered, receiver = get_covered(truth_table, allowed_acts=[priority])
+        else: # if no priority
+            covered, receiver = get_covered(truth_table, allowed_acts=allowed_acts)
 
-        # put the states covered by this round in the dont care set
-        if priority == 'IB' and truth_table[0, -1] in [1] and truth_table[-1, -1] in [1]:
-            #print('end')
-            covered = [covers[0], covers[-1]]
-        elif priority == 'TH' and truth_table[-1, -1] in [1]:
-            #print('top')
-            covered = [covers[-1]]
-        elif priority == 'IT' and truth_table[0, -1] in [1]:
-            #print('bot')
-            covered = [covers[0]]
-        elif 'BP' in priorities:
-            #print('mid')
-
-            covered = [covers[np.argmax(covers[:,2])]]
-
-            if truth_table[0, -1] in [1] and truth_table[-1, -1] in [1] and (covers[0, 2] + covers[-1, 2]) > np.max(covers[:,2]):
-                covered = [covers[0], covers[-1]]
-
-        else: # if nothing covered and then gate isnt possible
-            return []
-
-
-
-        print(covers)
-
+        # if something got covered this round
+        if sum([c[2] for c in covered]) > 0:
+            tables.append(copy.deepcopy(truth_table))
+            receivers.append(receiver)
+        else:
+            # if there is a priority and nothing covered then move to next highest priority
+            if priority is not None:
+                priorities = priorities[1:]
+            else: # if no priority and haven't covered anything then gate is not possible
+                return [], []
 
         for cov in covered:
             truth_table[cov[0]: cov[0]+cov[1], -1] = 2
@@ -816,7 +868,7 @@ def macchiato_v2(outputs,priorities = ['IB', 'TH', 'IT', 'BP'], max_queue_size =
         outputs = truth_table[:, -1]
         round += 1
 
-    return tables
+    return tables, receivers
 
 def macchiato(outputs, higher_order = False):
 
@@ -925,10 +977,10 @@ if __name__ == '__main__':
 
     #best_table = macchiato(outputs, max_queue_size=1)
     #best_table = graph_search(outputs, max_queue_size=0)
-    best_tables = macchiato_v2(outputs)
+    best_tables, receivers = macchiato_v2(outputs)
 
     print('VIOLATED CONSTRAINTS')
-    all_conflicts = [get_conflicting_constraints(best_table) for best_table in best_tables]
+    all_conflicts = [get_conflicting_constraints(np.array(best_table)) for best_table in best_tables]
     for conflicts in all_conflicts:
         print(len(conflicts))
         for c in conflicts:
@@ -941,8 +993,11 @@ if __name__ == '__main__':
     for t in best_tables:
         print(t)
 
+    print('receivers')
+    print(receivers)
 
-    print(get_blocks(best_tables[0])[0])
+
+
 
     sys.exit()
     #TODO: fix below here

@@ -33,7 +33,7 @@ def get_wells(receiver_coords, inducer_coords, activations):
     print('rc', receiver_coords)
     bp = receiver_coords[np.array(activations) == 'BP']
     th = receiver_coords[np.array(activations) == 'TH']
-    for i in range(2**n_inputs): # a well in the six well plate for each input state
+    for i in range(2**n_inputs - 1,-1, -1): # a well in the six well plate for each input state
 
 
         ics = inducer_coords[all_inputs[i] == 1]
@@ -51,6 +51,12 @@ def convert_to_opentron(coordinates):
 
     return [chr(ord('@') + coordinate[0]) + str(coordinate[1]) for coordinate in coordinates]
 
+def vstack(array):
+
+    if len(array) > 0:
+        return np.vstack(array)
+    else:
+        return np.array([])
 
 def get_plates(wells):
     '''
@@ -62,7 +68,7 @@ def get_plates(wells):
     :param activations:
     :return:
     '''
-    origins = np.array([[2,1], [2,10], [2, 19], [10, 1], [10, 10], [10, 19]])
+    origins = np.array([[1,1], [1,10], [1, 19], [9, 1], [9, 10], [9, 19]])
     plates = []
 
     n_wells = len(wells)
@@ -92,7 +98,7 @@ def get_plates(wells):
 
 
 
-        bandpass_wells, threshold_wells, IPTG_wells = map(np.vstack, [bandpass_wells, threshold_wells, IPTG_wells]) #TODO:: this crashes if one of these is empty
+        bandpass_wells, threshold_wells, IPTG_wells = map(vstack, [bandpass_wells, threshold_wells, IPTG_wells]) #TODO:: this crashes if one of these is empty
 
         bandpass_wells, threshold_wells, IPTG_wells = map(convert_to_opentron, [bandpass_wells, threshold_wells, IPTG_wells])
 
@@ -138,7 +144,7 @@ def draw_wells(plate_draw, wells, colour, scale):
                        fill=colour, outline=(0, 0, 0), width=2)
 
 def draw_plates(plates, out_dir):
-    scale = 30
+    scale = 100
     for p,plate in enumerate(plates):
         im = draw_blank_plate(scale)
         draw = ImageDraw.Draw(im)
