@@ -1,6 +1,6 @@
 
 
-###Usage
+### Usage
 
 ```
 usage: make_plates.py [-h] [--in_file IN_FILE] [--out_file OUT_FILE]
@@ -17,7 +17,7 @@ optional arguments:
 ```
 
 
-###Examples
+### Examples
 
 ```
 python make_plates.py
