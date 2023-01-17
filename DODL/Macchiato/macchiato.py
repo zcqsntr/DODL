@@ -66,7 +66,7 @@ def get_conflicting_constraints(truth_table):
 
     return violated
 
-def create_truth_table(outputs):
+def create_truth_table(outputs, string = False):
     # create inputs table
     inputs_table = []
     n_inputs = int(np.log2(outputs.size))
@@ -74,11 +74,19 @@ def create_truth_table(outputs):
         b_string = "{0:b}".format(n)
         b_string = b_string.rjust(n_inputs, '0')
         b_list = list(map(int, list(b_string)))
-        inputs_table.append(b_list)
 
-    inputs_table = np.array(inputs_table)
+        if string:
+            inputs_table.append(b_string)
+        else:
+            inputs_table.append(b_list)
 
-    truth_table = np.hstack((inputs_table, outputs.reshape(-1, 2 ** n_inputs).T))
+
+
+    if not string:
+        inputs_table = np.array(inputs_table)
+        truth_table = np.hstack((inputs_table, outputs.reshape(-1, 2 ** n_inputs).T))
+    else:
+        truth_table = inputs_table
     return truth_table
 
 def hash_table(truth_table):
@@ -130,141 +138,8 @@ def simplify(state_mapping, n_inputs):
 
     return new_state_mapping
 
-def get_activations(best_table, allowed_acts = ['TH', 'IT', 'BP', 'IB']):
-    n_inputs = int(np.log2(len(best_table)))
-
-    blocks = get_blocks(best_table)[0]
-
-    pos = 0
-
-    activations = OrderedDict()
-
-    if 'IB' in allowed_acts and len(blocks) == 3 and np.all(blocks[:, 0] == np.array([1, 0, 1])):  # only situation where IBP is admissable
-
-        activations['IB'] = []
-        this_IB = []
-        for i in range(3):
-            start = np.sum(blocks[0:pos + i, 1])
-            end = np.sum(blocks[0:pos + i + 1, 1])
-            this_IB.append(best_table[start:end, :n_inputs].tolist())
-        activations['IB'].append(this_IB)
-        pos = len(blocks) - 1
 
 
-    while pos < len(blocks) - 1:
-
-        if 'BP' in allowed_acts and pos < len(blocks) - 2 and np.all(blocks[pos:pos + 3, 0] == np.array([0, 1, 0])):
-
-            # can have multiple bp
-            this_BP = []
-
-            # need to put all off states before and after the bandoass into its off set
-            boundary = np.sum(blocks[0:pos + 1, 1])
-            off_set = best_table[0: boundary, :n_inputs]
-            # off_set = best_table[best_table[:, -1] == 0][0: boundary, :n_inputs]
-            this_BP.append(off_set.tolist())
-            boundary1 = np.sum(blocks[0:pos + 2, 1])
-
-            on_set = best_table[boundary: boundary1, :n_inputs]
-            this_BP.append(on_set.tolist())
-            off_set = best_table[boundary1:, :n_inputs]
-            # off_set = best_table[best_table[:, -1] == 0][boundary:, :n_inputs]
-            this_BP.append(off_set.tolist())
-            pos += 2
-
-            if 'BP' in activations.keys():
-                activations['BP'].append(this_BP)
-            else:
-                activations['BP'] = []
-                activations['BP'].append(this_BP)
-
-
-        elif 'IT' in allowed_acts and pos == 0 and np.all(blocks[0:2, 0] == np.array([1, 0])):  # inverse threshold can only be at beginning
-
-            this_IT = []
-            boundary = np.sum(blocks[0:pos + 1, 1])
-            on_set = best_table[0: boundary, :n_inputs]
-            this_IT.append(on_set.tolist())
-            off_set = best_table[boundary:, :n_inputs]
-            # off_set = best_table[best_table[:, -1] == 0][boundary:, :n_inputs]
-            this_IT.append(off_set.tolist())
-            pos += 1
-
-
-            activations['IT'] = []
-            activations['IT'].append(this_IT)  # can only have one inverse threhsold
-
-
-        elif 'TH' in allowed_acts and  pos == len(blocks) - 2 and np.all(blocks[-2:, 0] == np.array([0, 1])):  # threshld can only be at end
-            start = np.sum(blocks[0:pos, 1])
-            activations['TH'] = []  # can only have one threshold
-
-            # need to put all previous off states into thresholds off state
-            boundary = np.sum(blocks[0:pos + 1, 1])
-            this_TH = []
-            # off_set = best_table[best_table[:, -1] == 0][0: boundary, :n_inputs]
-            off_set = best_table[0: boundary, :n_inputs]
-            this_TH.append(off_set.tolist())
-
-            on_set = best_table[boundary:, :n_inputs]
-            this_TH.append(on_set.tolist())
-            activations['TH'].append(this_TH)
-            pos += 1
-        else: #failed to assign and so gate isnt possible
-            return -1
-
-
-
-    return activations
-
-def get_logic_gates(activations):
-    '''
-    gets the logic gates that are implemented by each colony and returns those output mappings
-    :param activations:
-    :return:
-    '''
-
-    logic_gates = {}
-
-    keys = list(activations.keys())
-    n_inputs = len(activations[keys[0]][0][0][0])
-
-
-
-    inputs_table = create_truth_table(np.array([0] * 2**n_inputs))[:, 0:n_inputs]
-
-    for key in keys:
-
-        for i in range(len(activations[key])):
-            logic_gate = np.zeros((2 ** n_inputs))
-            if key in ['BP', 'IB']:
-
-
-                for input_state in activations[key][i][0]:
-                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
-
-                for input_state in activations[key][i][1]:
-                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'BP'
-
-                for input_state in activations[key][i][2]:
-                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'IB'
-
-            elif key in ['TH', 'IT']:
-
-                for input_state in activations[key][0][0]:
-                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'IT'
-
-                for input_state in activations[key][0][1]:
-                    logic_gate[inputs_table.tolist().index(input_state)] = key == 'TH'
-
-            try:
-                logic_gates[key].append(logic_gate.T.tolist()) #could be multiple bandpasses
-            except Exception as e:
-                logic_gates[key] = []
-                logic_gates[key].append(logic_gate.T.tolist())
-
-
-    return logic_gates
 
 def covers_from_blocks(blocks):
 
@@ -594,7 +469,7 @@ def get_covered(truth_table, allowed_acts = ['TH', 'IT', 'IB', 'BP']):
     covering_receivers = np.array(covering_receivers)
 
     covered = [allowed_covers[np.argmax(allowed_covers[:, 2])]]
-    covering_receiver = [covering_receivers[np.argmax(allowed_covers[:, 2])]]
+    covering_receiver = covering_receivers[np.argmax(allowed_covers[:, 2])]
 
     return covered, covering_receiver
 
@@ -851,6 +726,11 @@ def macchiato_v2(outputs,priorities = [], allowed_acts = ['TH', 'IT', 'IB', 'BP'
         else: # if no priority
             covered, receiver = get_covered(truth_table, allowed_acts=allowed_acts)
 
+
+        for cov in covered:
+
+            truth_table[cov[0]: cov[0]+cov[1], -1] = 2
+
         # if something got covered this round
         if sum([c[2] for c in covered]) > 0:
             tables.append(copy.deepcopy(truth_table))
@@ -862,81 +742,53 @@ def macchiato_v2(outputs,priorities = [], allowed_acts = ['TH', 'IT', 'IB', 'BP'
             else: # if no priority and haven't covered anything then gate is not possible
                 return [], []
 
-        for cov in covered:
-            truth_table[cov[0]: cov[0]+cov[1], -1] = 2
+
 
         outputs = truth_table[:, -1]
         round += 1
 
     return tables, receivers
 
-def macchiato(outputs, higher_order = False):
 
-    truth_table = create_truth_table(outputs)
-    truth_table,_ = rough_optimisation(truth_table, higher_order=higher_order)
+def get_colony_gates(best_tables, receivers):
+    '''
+    gets the logic gates that are implemented by each colony and returns those output mappings
+    :param activations:
+    :return:
+    '''
 
-    current_table = truth_table
-
-
-    finished = False
-
-    while not finished:
-
-        finished = True
-        blocks = get_blocks(current_table)[0]
-
-        covers = covers_from_blocks(blocks)
-
-        # each block of ones is a cover, try and maximise each cover in turn, starting from largest cover
-        cov_sort = np.argsort(covers[:, 1])  # this will bias towards states in the middle, probably not what we want
+    colony_gates = {}
 
 
-        for index in cov_sort:
-            # get smallest cover
-            smallest_cover = covers[index]
-            small_start = smallest_cover[0]
-            small_end = smallest_cover[0] + smallest_cover[1]
-            # try and eliminate smallest cover by puttin gones into the covers on either side
-            if index > 0:
-                lower_cover = covers[index -1]
-            else:
-                lower_cover = None
-
-            if index < len(covers) - 1:
-                higher_cover = covers[index+ 1]
-            else:
-                higher_cover = None
-
-            test_table = copy.deepcopy(current_table)
+    n_inputs = int(np.log2(len(best_tables[0])))
 
 
-            if lower_cover is not None:
+    inputs_table = create_truth_table(np.array([0] * 2**n_inputs), string = True)
 
-                # go through oes and put as many into the lower cover as possible
-                for i, state in enumerate(range(small_start, small_end)):
-
-                    if can_move(test_table, state, lower_cover[0] + lower_cover[1] + i, higher_order=higher_order):
-                        test_table = move(test_table, state, lower_cover[0] + lower_cover[1] + i)
-                        smallest_cover[0] += 1
-                        smallest_cover[1] -=1
-
-            small_start = smallest_cover[0]
-            small_end = smallest_cover[0] + smallest_cover[1]
-
-            if higher_cover is not None:
-                for i, state in enumerate(range(small_start, small_end)[::-1]):
-                    if can_move(test_table, state, higher_cover[0] - i - 1, higher_order=higher_order):
-                        test_table = move(test_table, state, higher_cover[0] - i - 1)
-                        smallest_cover[1] -= 1
-
-            if smallest_cover[1] == 0:
-                current_table = test_table
-                finished = False
-                break
-
-    return current_table
+    covered = np.zeros((2 ** n_inputs))
 
 
+    for ind in range(len(best_tables)):
+
+        receiver = receivers[ind]
+        best_table = best_tables[ind]
+
+        logic_gate = [0]*2**n_inputs
+
+        for j in range(len(best_tables[0])):
+
+            input_state = best_table[j, :-1]
+
+            input_ind = inputs_table.index(''.join(map(str, input_state)))
+
+            if best_table[j, -1] == 2 and covered[input_ind] != 1:
+
+                logic_gate[input_ind] = 1
+                covered[input_ind] = 1
+
+        colony_gates[receiver] = logic_gate
+
+    return colony_gates
 
 
 parser = argparse.ArgumentParser(description='Run the Macchiato algorithm')
@@ -989,54 +841,34 @@ if __name__ == '__main__':
     print()
 
 
-    print('Simplified truth tables: ')
-    for t in best_tables:
-        print(t)
-
-    print('receivers')
-    print(receivers)
+    print('Covered: ')
+    for i,t in enumerate(best_tables):
+        print(receivers[i],'\n', t, '\n')
 
 
 
 
-    sys.exit()
-    #TODO: fix below here
-    colonies = get_activations(best_tables)
-    print(colonies)
-    print('Colony mapping: ')
-    new_colonies = {}
-    for act in colonies.keys():
-        new_activations = []
-        for state_mapping in colonies[act]:
-
-
-            #simplified_state_mapping = simplify(state_mapping, n_inputs)
-            new_activations.append(state_mapping)
-            print(act)
-            for s in state_mapping:
-                print(s)
-        new_colonies[act] = new_activations
-    print()
 
     print('Logic gates:')
-    logic_gates = get_logic_gates(colonies)
-    for act in logic_gates.keys():
+    colony_gates = get_colony_gates(best_tables, receivers)
+    for act in colony_gates.keys():
         print(act)
-        for lg in logic_gates[act]:
+        for lg in colony_gates[act]:
             print(lg)
-    print(logic_gates)
+    print(colony_gates)
 
 
-    results_dict = {'truth_table': truth_table.tolist(), 'simplified_table': best_table.tolist(), 'colonies': colonies, 'logic_gates': logic_gates}
+    bt = [best_table.tolist() for best_table in best_tables]
+
+
+    results_dict = {'truth_table': truth_table.tolist(), 'simplified_tables': bt, 'logic_gates': colony_gates}
+
+    print(results_dict)
 
     json.dump(results_dict, open(os.path.join(out_path,'{}.json'.format(sys.argv[1])), 'w+'))
 
     print('Results saved in ',os.path.join(out_path,'{}.json'.format(sys.argv[1])))
 
-
-
-# {-1: 0, 0: 2, 1: 73, 2: 105, 3: 69, 4: 7, 5: 0, 6: 0, 7: 0, 8: 0}
-#{-1: 0, 0: 2, 1: 66, 2: 115, 3: 70, 4: 3, 5: 0, 6: 0, 7: 0, 8: 0}
 
 
 

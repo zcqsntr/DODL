@@ -179,8 +179,6 @@ if __name__ == '__main__':
 
 
 
-
-
     data = json.load(open(in_file))
     receiver_inds = np.array(data['receiver_inds'])
     IPTG_inds = np.array(data['IPTG_inds'])
