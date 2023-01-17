@@ -71,6 +71,7 @@ def load_data(filepath):
                 #print(time_point, len(data[IPTG_conc][distance]['GFP'][replicate]), data[IPTG_conc][distance]['GFP'][replicate])
                 raise Exception("Time point and time index out of sync")
     return data
+
 def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environment_size, w, dx, laplace = False, bandpass = False, fitting = False):
 
 
@@ -267,7 +268,7 @@ def get_fitted_params(opt):
     returns the fitted gompertz growth and gene circuit/diffusion parameters for BP and TH characterisation
     :param opt: if 'threshold' will return threshold gompertz params and thrrehsold gene circuit params. If 'bandpass'
      will return the bandpass gompertz params with the bandpass gene circuit params. If 'both' will return gompertz
-     growth params for the bandpass and the bandpass gene circuit params fitted on top of the threshold params
+     growth params and the bandpass gene circuit params fitted on top of the threshold params
     :return:
     '''
     if opt in ['bandpass', 'both']:

@@ -58,41 +58,33 @@ elif len(sys.argv) == 2: # custom save path
     os.makedirs(save_path, exist_ok=True)
 else: # default
     save_path = './working_results'
-    # sorry this is hardcoded
-    save_file = '/Users/neythen/Desktop/Projects/colony-com/IPTG_logic_gates/IPTG_characterisation/out.csv' #mac
-    #save_file = '/home/neythen/Desktop/Projects/colony-com/IPTG_logic_gates/IPTG_characterisation/out.csv' #desktop
-    bayes_f = 0
-    swarm_f = 0
 
+
+
+swarm_f = 1
 evolve_f = 0
-plot_f = 1
-threshold = 1
+plot_f = 0
+threshold = 0
 bandpass = 1
 
-if bandpass and threshold:
-    opt = 'both'
-elif bandpass:
+
+'''if 'threshold' will fit threshold gene circuit params. If 'bandpass'
+fit all gene circuit params on the bandpass data'''
+
+if bandpass:
     opt = 'bandpass'
 elif threshold:
     opt = 'threshold'
 
-# the fitted params for either fitting only threshold, only the bandpass params using previously fit threshold params or fitting both at once
+
 # we need to gompertx parameters which are fitted to the growth rate
 params, gompertz_ps = ff.get_fitted_params(opt)
-
-
-
-# these two options didnt work very well so never ended up using them, cant promise they will work and probably not worth fising
-use_zong_params = False #fix params from the zong paper
-only_fit_diff = False # fix all params we can and only fit diffusion
-
 
 n_cores = int(mp.cpu_count())
 print('cores:', n_cores)
 ## 1536 well plate
 environment_size = (39, 39)
 plate_width = 35
-
 
 w = 0.9
 A, stencil = sf.get_shape_matrix(environment_size[0], environment_size[1], environment_size[0]//2)
@@ -103,13 +95,6 @@ inducer_coords = np.array([[environment_size[0]//2+1,environment_size[1]//2], [e
 dist = 4.5  # mm
 centre = plate_width / 2
 receiver_radius = 2.1
-
-'''reciever positions for the old cross caraceristation experiment'''
-# receiver_pos = [[centre - i * dist, centre] for i in range(1, 4)]
-# receiver_pos.extend([[centre + i * dist, centre] for i in range(1, 4)])
-# receiver_pos.extend([[centre, centre + i * dist] for i in range(1, 4)])
-# receiver_pos.extend([[centre, centre - i * dist] for i in range(1, 4)])
-
 
 
 '''receiver positions for the new characterisation experiment'''
@@ -125,14 +110,10 @@ coords_from_centre = np.array([
 ]) # the position of each receiver in terms of number of wells away from the centre (matrix coords)
 
 offset = np.array([-1,+1]) # offset as inducer is not exactly centred in the six wells
-
 receiver_pos = coords_from_centre*4.5 + centre + offset
-
-print(receiver_pos.shape)
-
 inducer_coords += offset
 receiver_coords = sf.get_node_coordinates(receiver_pos, receiver_radius, environment_size[0], environment_size[1],w)
-print(receiver_coords.shape)
+
 
 def plot_layout():
     grid = np.zeros(environment_size)
@@ -168,10 +149,8 @@ def plot_layout():
     plt.colorbar(im)
     plt.show()
 
-#plot_layout()
+#plot_layout() use this to check the layout
 plt.close('all')
-
-
 
 
 dx = lambda t, y: ff.dgompertz(t,*gompertz_ps)
@@ -286,43 +265,28 @@ def run_all_experiments(params, plot=False):
                 save_path = './characterisation_sims/threshold'
             elif bandpass:
                 save_path = './characterisation_sims/bandpass'
-            tps = [0, 1, 6, 11]
-
-            #plate.plot_simulation(sol, 4, scale = 'linear', cols = 2, time_points=tps,  save_path = save_path + '_'+ str(conc) )
-
 
 
         all_data[conc] = simulated_data
-    #if plot:
 
-
-    #   plt.show()
     plt.savefig('characterisation.pdf')
     plt.show()
 
     return all_data
 
 def objective(params):
-    all_params =  ff.get_fitted_params(bandpass = bandpass)[0]
+    all_params =  ff.get_fitted_params(opt)[0]
 
-    if threshold and not use_zong_params:#threshold
+    # threshold
+    if threshold:
         all_params[4:11] = params[0:7]
         all_params[17:21] = params[7:11]
         all_params[-1] = params[11]
 
     #bandpass
-    if bandpass and not use_zong_params:
+    if bandpass:
         all_params[-14:-8] = params[-8:-2]
         all_params[-4:-2] = params[-2:]
-
-
-    if use_zong_params:
-        all_params[4] = params[0]
-        all_params[-1] = params[-1]
-        all_params[17:21] = params[1:-1]
-
-    if only_fit_diff:
-        all_params[4] = params[0]
 
 
     all_sim_data = run_all_experiments(all_params, plot=False)
@@ -346,41 +310,6 @@ def objective(params):
 
     #print(error, params)
     return error
-
-def objective_for_bayesian(D_A, alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, alpha_G, beta_G, n_A, K_A, G_s):
-
-
-    all_params = ff.get_fitted_params(bandpass = bandpass)[0]
-
-
-
-    all_sim_data = run_all_experiments(all_params, plot=False)
-    error = 0
-
-    for IPTG_conc in IPTG_concs:
-        for distance in [4.5, 9.0, 13.5]:
-            lab_data = np.array(all_lab_data[IPTG_conc][distance])
-
-            sim_data = np.array(all_sim_data[IPTG_conc][distance])
-
-            diff = lab_data - sim_data
-
-            #error += np.sum(((diff)/(lab_data+0.00001))**2)/len(sim_data)
-            error += np.sum((diff) ** 2) / len(sim_data)
-
-    global global_best_cost
-    global global_best_params
-    if error < global_best_cost:
-
-        global_best_cost = error
-        global_best_params = [D_A, alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, alpha_G, beta_G, n_A, K_A, G_s]
-
-        print()
-        print('BEST ERROR: ', error, global_best_params)
-        save_file.write(str(error) + ',' + str(global_best_params) + '\n')
-        print()
-
-    return -error
 
 def vector_objective_par(params, *args):
     '''
@@ -464,15 +393,13 @@ def clip_params(params):
     params = np.clip(params, a_min=0, a_max=None)
     mx = 20
 
-    if threshold and not use_zong_params:
+    if threshold:
         params[params[:,9] > mx, 9] = mx
         params[params[:, 4] > mx, 4] = mx
 
-    if bandpass and not use_zong_params:
+    if bandpass:
         params[params[:, -2] > mx, -2] = mx
         params[params[:, -5] > mx, -5] = mx
-
-
     return params
 
 def evolve(params, n_gens, pop_size):
@@ -524,7 +451,6 @@ def evolve(params, n_gens, pop_size):
         #
         print(scores)
 
-
 def average_over_repeats(data, time_points, IPTG_concs):
     # extracts the average GFP measurement for eah time point in order
     averaged_data = {}
@@ -575,7 +501,6 @@ if __name__ == '__main__':
     dt = 0.1
     ## run the experiment
     distances = [13.5, 12.7, 6.4, 4.5, 14.2, 10.1, 9.0, 16.2]
-    #IPTG_concs = [0.03, 0.015, 0.0075, 0.00375, 0.00188, 0.0] #M
     IPTG_concs = [0.0, 0.00188, 0.00375, 0.0075, 0.015, 0.03]
 
 
@@ -585,154 +510,41 @@ if __name__ == '__main__':
 
     n_points = len(TH_data[IPTG_concs[0]][distances[0]]['GFP'][0])
     time_points = np.arange(0, n_points * 20, 20)  # times in minutes
-    print(n_points)
 
-
-
-
-    # min: 43.94537506931077, MSE after second evolution with problematic points removed
-    fitted_params = [3.68033023e-02,
-                     8.21667283e+04,
-                     1.00235768e-04,
-                     4.85833372e-04,
-                     1.02155766e+00,
-                     1.47406373e+04,
-                     7.58449901e-06,
-                     1.03026478e+02,
-                     2.37032357e+00,
-                     3.01979916e+00,
-                     7.53503109e+00,
-                     3.23521712e-01]
-
-
-    # min:  1.1516729125694962  BP all params with new characterisation data
-    BP_params = [4.35462879e-02, 4.88625617e+04, 1.83905487e-05, 3.95081261e-05,
-     4.47402392e-01, 1.24947521e+04, 1.10207308e-05, 1.40349891e+01,
-     1.01251668e+00, 8.56144749e+00, 3.70436050e+00, 2.13140568e-01,
-     1.04554814e+05, 9.67789421e-06, 7.18971464e-03, 1.08965612e+01,
-     2.45219227e+04, 2.18075133e-01, 4.49477997e+00, 1.87324583e+01]
-
-
-
-    params[4:11] = fitted_params[0:7]
-    params[17:21] = fitted_params[7:11]
-    params[-1] = fitted_params[11]
-
-
-
-
-    #bandpass
-    if bandpass and not use_zong_params:
-        params[-14:-8] = BP_params[-8:-2]
-        params[-4:-2] = BP_params[-2:]
-
-    if bandpass and threshold:
-        params[4:11] = BP_params[0:7]
-        params[17:21] = BP_params[7:11]
-        params[-1] = BP_params[11]
-
-
-    print(params[-2])
-
-
-
-    D_N, mu_max, K_mu, gamma, D_A, \
-    alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, \
-    alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0, \
-    alpha_G, beta_G, n_A, K_A, n_R, K_R, X_0, G_s = params
-    print(params)
-    print(len(params))
-
-
-
-    if threshold:
-        # particle swarm optimisation
-        bounds = ([0.01, 1e3, 1e-6, 1e-5, 0.5, 1e3, 1e-7, 5, 0.05, 0.5, 1, 1e-3],
-                  [0.3, 5e4, 1e-4, 1e-3, 20, 1e5, 1e-5, 450, 7.5, 20, 20,  3])# D_A, alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, alpha_G, beta_G, n_A, K_A, G_s
-
-    elif bandpass:
-
-        bounds = ([1e2,1e-6,1e-7, 0.1,1e1,1e-5,0.1, 0.1],
-                  [1e5, 1e-4,1e-2, 20,1e5,1, 20, 100]) # alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0, n_R, K_R
-    if threshold and bandpass:
-        bounds = ([0.01, 1e3, 1e-6, 1e-5, 0.5, 1e3, 1e-7, 5, 0.05, 0.5, 1, 1e-3, 1e2,1e-6,1e-7, 0.1,1e1,1e-5,0.1, 0.1 ],
-                  [0.3, 5e4, 1e-4, 1e-3, 20, 1e5, 1e-5, 450, 7.5, 20, 20, 3, 1e5, 1e-4,1e-2, 20,1e5,1, 20, 100]) # D_A, alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, alpha_G, beta_G, n_A, K_A, G_s, alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0, n_R, K_R
 
     global_best_cost = 9999999
     global_best_params = None
-    if use_zong_params:
-        bounds = ([1e-7, 5, 0.05, 0.5, 1, 1e-3], [0.3,450, 7.5, 5, 20, 3])
 
-    if only_fit_diff:
-        bounds = ([1e-7], [0.3])
+    params, _ = ff.get_fitted_params(opt)
 
-    if evolve_f: #evolove
-        print('evolve', evolve)
-
-        if threshold and bandpass:
-            params = BP_params
-        elif threshold:
-
-            params = fitted_params
-        elif bandpass:
-            params = BP_params
+    if evolve_f: #evolve
         evolve(params, n_gens = 1000, pop_size = 100)
-        #print('time taken:', time.time() - t)
-        #print('loss', objective(BP_params))
-
     elif plot_f: #plot
-
-        #print('objective', objective(fitted_params)) #1156 before opt
         run_all_experiments(params, plot = True)
-
     elif swarm_f: #particle swarm
+
+        if threshold:
+            # particle swarm optimisation
+            bounds = ([0.01, 1e3, 1e-6, 1e-5, 0.5, 1e3, 1e-7, 5, 0.05, 0.5, 1, 1e-3],
+                      [0.3, 5e4, 1e-4, 1e-3, 20, 1e5, 1e-5, 450, 7.5, 20, 20,
+                       3])  # D_A, alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, alpha_G, beta_G, n_A, K_A, G_s
+        elif bandpass:
+            bounds = (
+            [0.01, 1e3, 1e-6, 1e-5, 0.5, 1e3, 1e-7, 5, 0.05, 0.5, 1, 1e-3, 1e2, 1e-6, 1e-7, 0.1, 1e1, 1e-5, 0.1, 0.1],
+            [0.3, 5e4, 1e-4, 1e-3, 20, 1e5, 1e-5, 450, 7.5, 20, 20, 3, 1e5, 1e-4, 1e-2, 20, 1e5, 1, 20,
+             100])  # D_A, alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, alpha_G, beta_G, n_A, K_A, G_s, alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0, n_R, K_R
+
+
         options = {'c1': 0.5, 'c2': 0.3, 'w':0.9, 'k': 2, 'p': 10}
 
 
         # Call instance of PSO
-        if bandpass:
-            n_dims = 8
-        elif threshold:
+        if threshold:
             n_dims = 12
-        if threshold and bandpass:
+        elif bandpass:
             n_dims = 20
         optimizer = ps.single.GlobalBestPSO(n_particles=100, dimensions=n_dims, options=options, bounds=bounds)
 
         # Perform optimization
         cost, pos = optimizer.optimize(vector_objective, iters=1000, verbose=True)
-
-
-    elif bayes_f: # bayesian optimisation
-
-        if threshold and not use_zong_params:
-            string_params = ['D_A', 'alpha_T', 'beta_T', 'K_IT', 'n_IT', 'K_lacT', 'T7_0', 'alpha_G', 'beta_G', 'n_A', 'K_A', 'G_s']  # threshold
-        elif threshold and use_zong_params:
-            string_params = ['D_A',  'alpha_G', 'beta_G', 'n_A', 'K_A', 'G_s']  # threshold with zong params fixed
-        elif only_fit_diff:
-            string_params = ['D_A']
-
-        #string_params = ['D_A', 'alpha_T', 'beta_T', 'K_IT', 'n_IT', 'K_lacT', 'T7_0', 'alpha_G', 'beta_G', 'n_A', 'K_A', 'G_s', 'alpha_R', 'beta_R', 'K_IR', 'n_IR', 'K_lacR', 'R_0', 'n_R', 'K_R'] # all params
-
-        pbounds = {}
-
-        for i, param in enumerate(string_params):
-            pbounds[param] = (bounds[0][i], bounds[1][i])
-
-        bounds_transformer = SequentialDomainReductionTransformer() # can be used for sequential domain reduction
-
-        optimizer = BayesianOptimization(
-            f=objective_for_bayesian,
-            pbounds=pbounds,
-            random_state=1,
-        )
-
-
-
-        optimizer.maximize(
-            init_points=100,
-            n_iter=10000,
-        )
-
-
-
 

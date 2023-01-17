@@ -45,8 +45,6 @@ dt = 10  # sample time of simulations in minutes
 param_opts = {'TH': 'threshold', 'BP': 'bandpass'}
 
 
-
-
 def normalise_GFP(all_sims):
     all_processed_GFPs = []
 
