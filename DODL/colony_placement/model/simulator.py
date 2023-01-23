@@ -13,95 +13,147 @@ import matplotlib.pyplot as plt
 from skimage import feature
 import fitting_functions as ff
 
-
+from simulation_functions import get_shape_matrix, get_node_coordinates
 
 class DigitalSimulator():
 
-    def __init__(self, inducer_conc, environment_size, w, dt, laplace=False):
+    def __init__(self, inducer_conc, environment_size, w, dt,environment_bound = None, laplace=False, make_plate = ff.make_plate, gfp_index = 3, colony_radius = 2):
+        '''
+        Initialises a simulator for digital optimisation
+
+        :param inducer_conc: concentration of the inducer inputs
+        :param environment_size:
+        :param w:
+        :param dt:
+        :param laplace:
+        :param make_plate:
+        :param gfp_index:
+        '''
         self.inducer_conc = inducer_conc
         self.environment_size = environment_size
         self.w = w
         self.laplace = laplace
         self.dt = dt #minutes
+        self.make_plate = make_plate
+        self.gfp_index = gfp_index
+        self.opentron_origin = np.array([[2, 7]])
+        self.points_per_well = 5
+        self.colony_radius = colony_radius
+        self.bound = environment_bound
+
+    def opentron_to_coords(self, opentron_inds):
+        '''
+        converts an opentron index to the simulation grid coordinate in the centre of the well
+
+        :param opentron_ind:
+        :return:
+        '''
+        coords = self.opentron_origin + opentron_inds * self.points_per_well
+
+        return coords
+
+    def get_colony_coords(self, opentron_inds, colony_radius = None):
+        if colony_radius is None:
+            colony_radius = self.colony_radius
+        colony_centre_coords = self.opentron_to_coords(np.array(opentron_inds))
+
+        pos = colony_centre_coords * self.w
 
 
-    def run_sims(self, inducer_coords, receiver_coords, param_opt , plot = False, t_final = 20*60, growth_delay = 0):
+        colony_coords = [
+            get_node_coordinates(pos, colony_radius, self.environment_size[0], self.environment_size[1], self.w)]
+
+        return colony_coords
+
+    def plot_grid_layout(self):
+        # todo: implement this
+        '''
+        # plot the inducer and receiver locations
+        grid = np.zeros(environment_size)
+
+        grid[np.where(bound == -1)] = -1
+
+        for i, coord in enumerate(inducer_coords):
+            grid[coord[0], coord[1]] = i + 1
+
+        for j, rc in enumerate(receiver_coords):
+            grid[rc[:, 0], rc[:, 1]] = i + j + 2
+        sys.exit()
+        im = plt.imshow(grid)
+        plt.colorbar(im)
+
+
+        plt.savefig(os.path.join(outpath, 'simulation_grid.png'), dpi=300)
+        '''
+
+    def run_sims(self, plates, t_final = 20*60):
         '''
         runs the simulations for all input states for a given set of inducer and receiver coords and receiver activation
 
-        :param inducer_coords:
-        :param receiver_coords:
-        :param bandpass:
-        :param plot:
-        :param t_final:
-        :param growth_delay: delay in the growth of the ccells to investigate noise in timing
+        :param plates: runs all simulations for a 2d list of plates (intended dims (n_receivers, 2**n_inputs))
         :return:
         '''
 
-
-
-        params, gompertz_ps = ff.get_fitted_params(param_opt)
-
-        dx = lambda t, y: ff.dgompertz(t - growth_delay, *gompertz_ps)
-
-        n_inputs = len(inducer_coords)
-        all_inputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
         all_sims = []
 
+        for receiver in range(len(plates)):
+
+            r_sims = []
+            for input_state in range(len(plates[receiver])):
+                sim = plates[receiver][input_state].run(t_final=t_final, dt=self.dt, params=())
+
+                r_sims.append(sim)
+
+            all_sims.append(r_sims)
 
 
-        # muliple recievers can have multiple activations
-        for i in range(2 ** n_inputs):
-            #print(np.array([1,2,3])[all_inputs[i] == 1])
-            plate = ff.make_plate(receiver_coords, inducer_coords[all_inputs[i] == 1], params, self.inducer_conc,
-                                  self.environment_size, self.w, dx, laplace = self.laplace, bandpass=param_opt in ['bandpass', 'both'])
+        return all_sims #shape = (n_receivers, n_input_states, n_species, x,y,t)
 
-            sim_ivp = plate.run(t_final=t_final, dt=self.dt, params=params)
-            if plot:
-                plate.plot_simulation(sim_ivp, 1, time_points = [-1], scale='linear', cols=2)
-            all_sims.append(sim_ivp)
-
-        return all_sims
-
-
-    def get_logic_area(self, logic_gate, all_sims, thresholds, t):
+    def get_logic_area(self, logic_gate, all_GFPs, thresholds):
         '''
-        given a logic gate, set of simulations, threhsolds and time returns the area in which the logic gate is encoded
+        given a logic gate, set of simulations, thresholds and time returns the area in which the logic gate is encoded
         '''
-
 
         inactive_thr, active_thr = thresholds
 
         logic_area = np.ones(self.environment_size)  # start off as all ones and eliminate
-        logic_area[np.where(self.bound == -1)] = 0 # only look in the circular plate
+
+        if self.bound is not None:
+            logic_area[np.where(self.bound == -1)] = 0 # only look in the circular plate
 
 
         for i in range(len(logic_gate)):
-            sim_ivp = all_sims[i]
-            GFP = sim_ivp[3]
-            end_GFP = GFP[:, :, t]
+
+            GFP = all_GFPs[i]
+
             if logic_gate[i] == 0:
-                logic_area[end_GFP > inactive_thr] = 0
+                logic_area[GFP > inactive_thr] = 0
             elif logic_gate[i] == 1:
-                logic_area[end_GFP < active_thr] = 0
+                logic_area[GFP < active_thr] = 0
 
         return logic_area
 
+    def get_opentron_indices(self):
+        '''
+        generates all allowable opentron indices in a six well
+        '''
+        indices= []
+
+        for i in range(6):
+            for j in range(6):
+
+                if [i,j] not in [[0,0], [0,5], [5,0], [5,5]]: # if not on the corner
+                    indices.append([i, j])
+        return indices
 
     def get_opentron_positions(self):
         '''
         generates all allowable opentron positions
         '''
         positions = []
-        start_coords = [2, 7]
-        points_per_well = 5
-        for i in range(6):
-            for j in range(6):
-
-                if [i,j] not in [[0,0], [0,5], [5,0], [5,5]]: # if not on the corner
-
-
-                    positions.append(np.around([i * points_per_well + start_coords[0], j * points_per_well+ start_coords[1]] , decimals=0).astype(dtype=np.int32))
+        indices = self.get_opentron_indices()
+        for index in indices:
+            positions.append(np.around([index[0] * self.points_per_well + self.opentron_origin[0][0], index[1] * self.points_per_well+ self.opentron_origin[0][1]] , decimals=0).astype(dtype=np.int32))
         return positions
 
     def get_opentron_pos_within_area(self, labels, area, inducer_coords):
@@ -160,50 +212,61 @@ class DigitalSimulator():
 
         return maxmin_r, best_pos
 
-    def score_over_t(self,  receiver_coords, inducer_coords, thresholds, logic_gate, bandpass = False, plot = False):
+    def get_fitness(self, GFPs, receiver_info, inducer_coords):
+        '''
+        default fitness function, overwrite if you want to use another metric e.g. ON OFF ratio. This is supposed to
+        match the lab experiments where we have set thresholds for each reciever function. Fitness is scored by the
+        minimum distance of an opentron position (where a receiver will be placed) to the boundary at which the function
+        encoded.
+        :param sims:
+        :param receiver_info:
+        :param inducer_coords:
+        :return:
+        '''
 
-        all_sims = self.run_sims(inducer_coords, receiver_coords, bandpass, plot = plot)
+        logic_area = self.get_logic_area(receiver_info['logic_gates'], GFPs, receiver_info['thresholds'])
+        max_r, best_pos = self.get_max_r(logic_area, inducer_coords)
+
+        return max_r, best_pos
+
+    def fitness_over_t(self, GFPs, receiver_info, inducer_coords):
+
         #plt.show()
-        n_t = all_sims[0].shape[3]
+        n_t = GFPs[0].shape[-1]
 
         all_t = list(range(n_t))
 
 
         all_scores = []
         all_receiver_pos = []
+
         for t in all_t:
-
-            logic_area = self.get_logic_area(logic_gate, all_sims, thresholds, t)
-
-            max_r, best_pos = self.get_max_r(logic_area, inducer_coords)
-
+            max_r, best_pos = self.get_fitness(GFPs[:,:,t], receiver_info, inducer_coords)
             all_scores.append(max_r)
             all_receiver_pos.append(best_pos)
 
 
-        return all_scores,all_receiver_pos, all_t, all_sims
+        return all_scores, all_receiver_pos
 
-    def max_fitness_over_t(self, all_receiver_coords, inducer_coords, all_thresholds, logic_gates, activations, test_t = False, plot = False):
+    def max_fitness_over_t(self, sims, inducer_coords, receiver_info, test_t = False):
 
         # each logic gate has a corresponding activation and set of thresholds
 
         all_scores = []
-        all_sims = []
         all_receiver_pos = []
-        for i in range(len(all_thresholds)):
 
-            thresholds = all_thresholds[i]
-            logic_gate = logic_gates[i]
-            activation = activations[i]
-            receiver_coords = all_receiver_coords[i]
+        for receiver_ind in range(len(sims)):
+            # sims_shape = (n_receivers, n_input_states, n_species, x,y,t)
 
-            scores, receiver_pos, t, sims = self.score_over_t(receiver_coords, inducer_coords, thresholds, logic_gate, bandpass = activation == 'BP', plot=plot)
+            GFPs = np.array([sims[receiver_ind][i][self.gfp_index, :,:,:] for i in range(len(sims[0]))])
+            scores, receiver_pos = self.fitness_over_t(GFPs,  receiver_info, inducer_coords)
 
             all_scores.append(scores)
-            all_sims.append(sims)
+
             all_receiver_pos.append(receiver_pos)
 
         all_scores = np.array(all_scores)
+
 
         # find the time which max(min(all_scores))
         max_min_score = 0
@@ -211,9 +274,9 @@ class DigitalSimulator():
         best_receiver_pos = -1
 
         if not test_t: # search over all t
-            for i in range(len(t)):
+            for i in range(len(sims[0,0,0,0,0,:])):
                 scores = all_scores[:,i]
-                receiver_pos = [all_receiver_pos[j][i] for j in range(len(all_thresholds))]
+                receiver_pos = [all_receiver_pos[j][i] for j in range(len(receiver_info['activations']))]
 
                 min_score = min(scores)
                 if min_score > max_min_score:
@@ -224,14 +287,13 @@ class DigitalSimulator():
             #test_t -= 1
 
             scores = all_scores[:, test_t]
-            best_receiver_pos = [all_receiver_pos[j][test_t] for j in range(len(all_thresholds))]
-
+            best_receiver_pos = [all_receiver_pos[j][test_t] for j in range(len(receiver_info['thresholds']))]
             # TODO:: check all recievers are at different positions
             max_min_score = min(scores)
 
 
 
-        return max_min_score, best_t, best_receiver_pos, all_sims
+        return max_min_score, best_t, best_receiver_pos
 
 
 

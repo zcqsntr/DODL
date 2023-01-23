@@ -14,6 +14,7 @@ from simulator import DigitalSimulator
 
 import math
 from multiprocessing import Pool
+import multiprocessing as mp
 
 from itertools import repeat
 import numpy as np
@@ -22,7 +23,8 @@ import argparse
 import json
 
 from simulation_functions import get_shape_matrix, get_node_coordinates
-
+import fitting_functions as ff
+import matplotlib.pyplot as plt
 
 ## 1536 well plate
 environment_size = (39, 39)
@@ -43,31 +45,54 @@ def laplace(x):
 
     return np.matmul(A,x.flatten()).reshape(x.shape)
 
-def run_sim(indices, receiver_coords, thresholds, logic_gates, activations):
+def run_sim(inducer_inds, receiver_info):
+    '''
+    Wrapper to run sims in parrallel
+    :param IPTG_inds:
+    :param receiver_info:
+    :return:
+    '''
 
 
-    ind0, ind1, ind2 = indices
-    simulator = DigitalSimulator(conc, environment_size, w, dt, laplace=laplace)
-    simulator.bound = bound
-    inputs_diff = np.any(ind0 != ind1) and np.any(ind1 != ind2) and np.any(ind0 != ind2)
+
+    A, bound = get_shape_matrix(environment_size[0], environment_size[1], environment_size[0] // 2)
+
+
+    def laplace(x):
+        return np.matmul(A, x.flatten()).reshape(x.shape)
+
+    #receiver_coords = simulator.get_colony_coords(opentron_inds = [[3,3] for i in range(len(receiver_info['activations']))])  #these are lawns anyway so position doesnt matter
+    receiver_coords = simulator.get_colony_coords([3,3]) * len(receiver_info['activations'])  #these are lawns anyway so position doesnt matter
+
+    inducer_coords = simulator.opentron_to_coords(inducer_inds)
+
+    # make a plate for every reciever-input combination, need different plates for each receiver for lawn simulations
+    ''' the make plate function needs to be written for each specific system '''
+
+    plates = ff.make_plates(receiver_coords, receiver_info['activations'], inducer_coords, conc, environment_size, w, laplace)
+
+
+    # some positions might have been mutated to have an index on the corner so need to check
     corners = [[0, 0], [0, max_ind-1], [max_ind-1, 0],
                [max_ind-1, max_ind-1]]  # cant put IPTG in the corners of the allowable square
 
 
-    on_corner = np.any(list(np.all(i == j) for i in corners for j in indices))
-    ti = time.time()
-    if inputs_diff and not on_corner:
-        coords = np.array([[start_coords + ind * points_per_well] for ind in IPTG_inds]).reshape(-1, 2)
+    on_corner = np.any(list(np.all(i == j) for i in corners for j in inducer_inds))
 
-        score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords, thresholds,
-                                                                             logic_gates, activations, test_t=-1)
+
+    if not on_corner:
+        inducer_coords = np.array([[simulator.opentron_to_coords(ind)] for ind in inducer_inds]).reshape(-1, 2)
+
+        all_sims = simulator.run_sims(plates)
+
+        score, t, best_receiver_coords = simulator.max_fitness_over_t(all_sims, inducer_coords, receiver_info, test_t=-1)
     else:
         coords = -1
         score = -1
         best_receiver_pos = -1
         t = -1
-
-    return {'score':score, 'receiver_pos': best_receiver_pos, 'coords': coords, 't':t}
+    print({'score':score, 'receiver_coords': best_receiver_coords, 'inducer_coords': inducer_coords, 't':t})
+    return {'score':score, 'receiver_coords': best_receiver_coords, 'inducer_coords': inducer_coords, 't':t}
 
 
 
@@ -76,6 +101,8 @@ parser.add_argument('in_path', metavar='in_path', type=str, nargs=1, help='the p
 parser.add_argument('--outpath', type=str, help='the filepath to save output in, default is colony_placement/output')
 
 if __name__ == '__main__':
+
+    '''------- Simulation setup--------'''
     args = parser.parse_args()
 
     in_path = args.in_path[0]
@@ -85,53 +112,47 @@ if __name__ == '__main__':
         out_path = os.path.join(dir_path, 'output')
     os.makedirs(out_path, exist_ok=True)
 
-
+    n_inputs = 3
+    min_distance = 4.5
+    conc = 7.5 / 1000
 
     macchiato_results = json.load(open(in_path))
 
     logic_gates = []
-
     activations = []
     thresholds = [] #TODO:: let user specify these
     for act in macchiato_results['logic_gates'].keys():
 
         for lg in macchiato_results['logic_gates'][act]:
             activations.append(act)
+            ''' ---- SET THRESHOLDS HERE-----'''
             if act == 'BP':
-                thresholds.append([5,5])
+                thresholds.append([1,1])
             elif act == 'TH':
-                thresholds.append([5,5])
+                thresholds.append([3,3])
             logic_gates.append(lg)
 
-    print(activations, logic_gates, thresholds)
-    receiver_pos = [[int(environment_size[0] / 2), int(environment_size[1] / 2)]]
-    receiver_radius = 1000
-    receiver_coords = get_node_coordinates(receiver_pos, receiver_radius, environment_size[0], environment_size[1],
-                                           w)  # lawn of receivers
-    receiver_coords = [receiver_coords] * len(activations)
-    n_inputs = 3
-    min_distance = 4.5
-    conc = 7.5/1000
+    receiver_info = {'activations': activations, 'thresholds':thresholds, 'logic_gates': logic_gates}
+
 
     all_outputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
 
     max_score = 0
     max_coords = np.array([[0, 0]])
-
     max_t = -1
-    start_coords = np.array([[2, 7]])
 
-    all_indices = []
-    max_ind = 8
+
     dt = 60 * 20  # sample time of simulations in minutes
 
-    for i in range(max_ind):
-        for j in range(max_ind):
-            all_indices.append(np.array([i, j]))
+    simulator = DigitalSimulator(conc, environment_size, w, dt, environment_bound=bound, laplace=laplace,
+                                 colony_radius=1000)
 
-    pop_size = 100
+    all_indices = simulator.get_opentron_indices()
+
+    pop_size = 10
     n_gens = 10
     plot = False
+    max_ind = 6
 
     IPTG_is = np.random.choice(len(all_indices), size=(pop_size, 3)) # three inputs for each
     IPTG_inds = np.array(all_indices)[IPTG_is] # (pop_size, 3, 2), the opentron indeices
@@ -148,11 +169,14 @@ if __name__ == '__main__':
         # 2 Receiver
         # 3 GFP
 
+        n_cores = int(mp.cpu_count())
         ti = time.time()
-        indices = IPTG_inds
+
 
         pool = Pool(5)
-        results = pool.starmap(run_sim, zip(indices, repeat(receiver_coords), repeat(thresholds), repeat(logic_gates), repeat(activations)))
+
+        #results = pool.starmap(run_sim, zip(IPTG_inds, repeat(receiver_info)))
+        results = [run_sim(IPTG_inds[i], receiver_info) for i in range(len(IPTG_inds))] # for debugging
         pool.close()
         for i, result in enumerate(results):
             score = result['score']
@@ -186,7 +210,6 @@ if __name__ == '__main__':
             new_IPTG_inds[int(pop_size*0.45) + i] = np.clip(new_IPTG_inds[i], 0, max_ind)
 
         for i in range(pop_size): # reinitilise grids with 0 score
-
             if scores[i] <=0:
                 simulated[i] = 0
                 IPTG_is = np.random.choice(len(all_indices), size=(1, 3))  # three inputs for each
@@ -195,16 +218,9 @@ if __name__ == '__main__':
 
         # add random grids for bottom 10%
         for i in range(int(pop_size*0.9), pop_size):
-
             simulated[i] = 0
             IPTG_is = np.random.choice(len(all_indices), size=(1, 3))  # three inputs for each
-            new_IPTG_inds[i] = np.array(all_indices)[IPTG_is]  # (pop_size, 3, 2), the opentron indeices
-
-
-
-
-
-
+            new_IPTG_inds[i] = np.array(all_indices)[IPTG_is]  # (pop_size, 3, 2), the opentron indeice
 
         IPTG_inds = copy.deepcopy(new_IPTG_inds)
 

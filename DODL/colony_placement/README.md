@@ -1,10 +1,11 @@
 
 usage: design_logic_gates.py [-h] [--outpath OUTPATH] T
 
-Run the colony placement algorithm
+Run the colony placement algorithm. This currently requires the threhsold to be set at which a receiver is 
+considered ON. These can be set near the beggining of the main function. 
 
 positional arguments:
-  T                  the path of the saved output from macchiato
+  in_path          the path of the saved output from macchiato
 
 optional arguments:
   -h, --help         show this help message and exit

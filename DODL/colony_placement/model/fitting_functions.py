@@ -6,6 +6,7 @@ import helper_functions as hf
 from plate import Plate
 from species import Species
 import math
+import itertools
 
 def gompertz(t, A, um, lam):
     return A* np.exp(-np.exp((um*np.e)/A*(lam - t) +1))
@@ -73,11 +74,7 @@ def load_data(filepath):
     return data
 
 def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environment_size, w, dx, laplace = False, bandpass = False, fitting = False):
-
-
     #amount = inducer_conc * 1e-3 #micro moles
-
-
     if inducer_conc > 0.1:
         raise Exception('CONC IS VERY HIGH, CHECK THAT IT IS IN MOLAR, NOT mM')
 
@@ -87,7 +84,7 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
 
     init_conc = amount / (w ** 2 * agar_thickness) #mol/mm^3
 
-    if fitting:
+    if fitting: # in fitting the input is spread over a few grid points
         init_conc /= len(inducer_coords)
 
     init_conc *= 1e3  # convert to  mM
@@ -128,15 +125,12 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
     U_A = np.zeros(environment_size)
     rows = inducer_coords[:, 0]
     cols = inducer_coords[:, 1]
+
     U_A[rows, cols] = A_0
 
     A = Species("A", U_A)
     def A_behaviour(t, species, params):
-        ## unpack params
-        D_N, mu_max, K_mu, gamma, D_A, \
-        alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, \
-        alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0, \
-        alpha_G, beta_G, n_A, K_A, n_R, K_R, X_0, G_s = params
+
 
         a = D_A * hf.ficks(np.maximum(0,species['A']), w, laplace = laplace)
         return a
@@ -153,10 +147,6 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
     U_T7 = np.ones(environment_size) * T7_0
     T7 = Species("T7", U_T7)
     def T7_behaviour(t, species, params):
-        D_N, mu_max, K_mu, gamma, D_A, \
-        alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, \
-        alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0, \
-        alpha_G, beta_G, n_A, K_A, n_R, K_R, X_0, G_s = params
 
         mu = dx(t, species)*receiver_flags
 
@@ -171,11 +161,7 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
     U_G = np.zeros(environment_size)
     G = Species("G", U_G)
     def G_behaviour(t, species, params):
-        ## unpack params
-        D_N, mu_max, K_mu, gamma, D_A, \
-        alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, \
-        alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0,\
-        alpha_G, beta_G, n_A, K_A, n_R, K_R, X_0, G_s = params
+
 
         mu = dx(t, species)*receiver_flags
         T7 = np.maximum(0, species['T7'])
@@ -199,10 +185,7 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
     R = Species("R", U_R)
 
     def R_behaviour(t, species, params):
-        D_N, mu_max, K_mu, gamma, D_A, \
-        alpha_T, beta_T, K_IT, n_IT, K_lacT, T7_0, \
-        alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0, \
-        alpha_G, beta_G, n_A, K_A, n_R, K_R, X_0, G_s = params
+
 
         mu = dx(t, species) * receiver_flags
         #print('nir', n_IR)
@@ -218,6 +201,26 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
 
     return plate
 
+
+def make_plates(all_receiver_coords, receiver_acts, inducer_coords, inducer_conc, environment_size, w, dx, laplace = False, fitting = False):
+    plates = []
+
+    n_inputs = len(inducer_coords)
+
+    all_inputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
+    for i, rc in enumerate(all_receiver_coords):
+        r_plates = []
+        activation = receiver_acts[i]
+        params, gompertz_ps = get_fitted_params(activation)
+        dx = lambda t, y: dgompertz(t, *gompertz_ps)
+
+        for i in range(2 ** n_inputs):
+            plate = make_plate(rc, inducer_coords[all_inputs[i] == 1], params, inducer_conc,
+                                  environment_size, w, dx, laplace = laplace, bandpass=activation=='BP', fitting = fitting)
+
+            r_plates.append(plate)
+        plates.append(r_plates)
+    return plates
 
 def get_default_params():
     ## experimental parameters
@@ -271,7 +274,7 @@ def get_fitted_params(opt):
      growth params and the bandpass gene circuit params fitted on top of the threshold params
     :return:
     '''
-    if opt in ['bandpass', 'both']:
+    if opt in ['bandpass', 'both', 'BP']:
         gompertz_ps = [2.53791252e-01, 2.95660906e-04, 3.54576795e+02]  # bandpass second characterisation data
         X_0 = 5.970081581135449e-05  # from gompertz, bandpasss
     else:
@@ -308,7 +311,7 @@ def get_fitted_params(opt):
     1.94664816e+01,
     6.81117529e-01]
 
-    if opt == 'bandpass':
+    if opt == 'bandpass' or 'BP':
         # min:  1.1516729125694962 BP all params after second evolution with new characterisation
         BP_params = [4.35462879e-02, 4.88625617e+04, 1.83905487e-05, 3.95081261e-05,
          4.47402392e-01, 1.24947521e+04, 1.10207308e-05, 1.40349891e+01,

@@ -219,7 +219,7 @@ def run_all_experiments(params, plot=False):
 
     for i, conc in enumerate(IPTG_concs):
 
-        plate = ff.make_plate(receiver_coords, inducer_coords, params, conc, environment_size, w, dx, laplace = laplace, bandpass=bandpass, fitting = True)
+        plate = ff.make_plate(receiver_coords, inducer_coords, params, conc, environment_size, w, dx, laplace=laplace, bandpass=bandpass, fitting = True)
         #sol = plate.run(t_final = 20 * 62, dt = .1, params=params) #first set of data
         sol = plate.run(t_final = time_points[-1], dt = .1, params=params, t_eval = time_points)
         simulated_data = measure_flourescence(sol)

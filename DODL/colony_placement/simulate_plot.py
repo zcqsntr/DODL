@@ -60,7 +60,7 @@ def normalise_GFP(all_sims):
 
             for t in range(GFP.shape[2]):
                 receiver_GFP = GFP[:, :, t]
-                r_c = receiver_coords[i]
+                r_c = simulator.get_colony_coords(receiver_inds[i], receiver_radius)[0]
                 # take middle 50% of pixels
                 pixels = np.sort(receiver_GFP[np.min(r_c[:, 0]): np.max(r_c[:, 0]) + 1, np.min(r_c[:, 1]): np.max(r_c[:, 1]) + 1]
                                                     .flatten())
@@ -89,14 +89,8 @@ def save_GFP_images(all_sims):
             f.write('receiver, input_state, time(mins), row, col, GFP\n')
             for j in range(2**n_inputs):
 
-
-
                 sim_ivp = sims[j]
-                GFP = sim_ivp[3]
-
-
-
-
+                GFP = sim_ivp[simulator.gfp_index]
 
                 for t_step in range(GFP.shape[2]):
 
@@ -106,10 +100,6 @@ def save_GFP_images(all_sims):
                         for col in range(GFP[:,:,t_step].shape[1]):
 
                             f.write('{}, {}, {}, {}, {}, {}\n'.format(i, j, t, row, col, GFP[row, col, t_step]))
-
-
-
-
 
 def plot_timecourses(all_processed_GFPs):
     for i, processed_GFPs in enumerate(all_processed_GFPs):  # for each receiver
@@ -126,8 +116,6 @@ def plot_timecourses(all_processed_GFPs):
             timecourse_ax.set_xlabel('Time (min)')
             timecourse_ax.set_ylabel('GFP mean pixel value per well')
 
-
-
         plt.legend()
 
         timecourse_fig.savefig(os.path.join(outpath,'timecourse_'+str(i)+'.png'), dpi=300)
@@ -136,15 +124,12 @@ def plot_timecourses(all_processed_GFPs):
 
 def plot_barchart(all_processed_GFPs):
 
-
-
     for i,processed_GFPs in enumerate(np.array(all_processed_GFPs)):
         end_GFPs = processed_GFPs[:, -1]
         '''
         plt.figure()
 
-        
-
+    
         # plt.ylim(top=np.max(end_GFPs), bottom=0)
         # end_GFPs.reverse()
         plt.bar(range(2 ** n_inputs), end_GFPs)
@@ -196,13 +181,13 @@ if __name__ == '__main__':
 
     os.makedirs(outpath, exist_ok=True)
 
-
-
     data = json.load(open(in_file))
     print(data)
     receiver_inds = np.array(data['receiver_inds'])
     IPTG_inds = np.array(data['IPTG_inds'])
     activations = data['activations']
+
+
 
     A, bound = get_shape_matrix(environment_size[0], environment_size[1], environment_size[0] // 2)
 
@@ -212,48 +197,15 @@ if __name__ == '__main__':
     simulator = DigitalSimulator(conc, environment_size, w, dt, laplace=laplace)
     simulator.bound = bound
 
-    activations = data['activations']
+    receiver_coords = simulator.get_colony_coords(receiver_inds)
+    inducer_coords = simulator.opentron_to_coords(IPTG_inds)
 
-    IPTG_inds = np.array(data['IPTG_inds'])
-    n_inputs = len(data['IPTG_inds'])
-    start_coords = np.array([[2, 7]]) # this is a,1 on opentron top left well
+    # make a plate for every reciever-input combination, need different plates for each receiver for lawn simulations
+    plates = ff.make_plates(receiver_coords, activations, inducer_coords, conc, environment_size, w, laplace)
 
-    inducer_coords = np.array(
-        [[start_coords + ind * points_per_well] for ind in IPTG_inds]).reshape(-1, 2)
+    n_inputs = len(IPTG_inds)
 
-
-    #score, t, best_receiver_pos, all_sims = simulator.max_fitness_over_t(receiver_coords, coords,thresholds,logic_gates, activations,test_t=-1, plot = False)
-
-
-
-    rec_coords = start_coords + receiver_inds * points_per_well
-    receiver_pos = rec_coords * w
-    receiver_coords = [
-        get_node_coordinates(np.array([rp]), receiver_radius, environment_size[0], environment_size[1], w) for rp in
-        receiver_pos]
-
-    # plot the inducer and receiver locations
-    grid = np.zeros(environment_size)
-
-    grid[np.where(bound == -1)] = -1
-
-    for i, coord in enumerate(inducer_coords):
-        grid[coord[0], coord[1]] = i + 1
-
-    for j, rc in enumerate(receiver_coords):
-        grid[rc[:, 0], rc[:, 1]] = i + j + 2
-
-    im = plt.imshow(grid)
-    plt.colorbar(im)
-    plt.savefig(os.path.join(outpath, 'simulation_grid.png'), dpi=300)
-
-
-
-    all_sims = []
-    for i in range(len(activations)):
-        sims = simulator.run_sims( inducer_coords, receiver_coords[i], param_opts[activations[i]], t_final = 20*60, growth_delay=0*60)
-
-        all_sims.append(sims)
+    all_sims = simulator.run_sims(plates, t_final = 20*60)
 
 
     if n_inputs == 2:
