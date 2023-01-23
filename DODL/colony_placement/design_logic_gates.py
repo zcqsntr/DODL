@@ -45,7 +45,7 @@ def laplace(x):
 
     return np.matmul(A,x.flatten()).reshape(x.shape)
 
-def run_sim(inducer_inds, receiver_info):
+def run_sim(inducer_inds, r_activations, r_logic_gates, r_thresholds):
     '''
     Wrapper to run sims in parrallel
     :param IPTG_inds:
@@ -62,14 +62,14 @@ def run_sim(inducer_inds, receiver_info):
         return np.matmul(A, x.flatten()).reshape(x.shape)
 
     #receiver_coords = simulator.get_colony_coords(opentron_inds = [[3,3] for i in range(len(receiver_info['activations']))])  #these are lawns anyway so position doesnt matter
-    receiver_coords = simulator.get_colony_coords([3,3]) * len(receiver_info['activations'])  #these are lawns anyway so position doesnt matter
+    receiver_coords = simulator.get_colony_coords([3,3]) * len(r_activations)  #these are lawns anyway so position doesnt matter
 
     inducer_coords = simulator.opentron_to_coords(inducer_inds)
 
     # make a plate for every reciever-input combination, need different plates for each receiver for lawn simulations
     ''' the make plate function needs to be written for each specific system '''
 
-    plates = ff.make_plates(receiver_coords, receiver_info['activations'], inducer_coords, conc, environment_size, w, laplace)
+    plates = ff.make_plates(receiver_coords, r_activations, inducer_coords, conc, environment_size, w, laplace)
 
 
     # some positions might have been mutated to have an index on the corner so need to check
@@ -82,10 +82,10 @@ def run_sim(inducer_inds, receiver_info):
 
     if not on_corner:
         inducer_coords = np.array([[simulator.opentron_to_coords(ind)] for ind in inducer_inds]).reshape(-1, 2)
-
+        print(r_logic_gates)
         all_sims = simulator.run_sims(plates)
 
-        score, t, best_receiver_coords = simulator.max_fitness_over_t(all_sims, inducer_coords, receiver_info, test_t=-1)
+        score, t, best_receiver_coords = simulator.max_fitness_over_t(all_sims, inducer_coords, r_logic_gates, r_thresholds, test_t=-1)
     else:
         coords = -1
         score = -1
@@ -118,21 +118,21 @@ if __name__ == '__main__':
 
     macchiato_results = json.load(open(in_path))
 
-    logic_gates = []
-    activations = []
-    thresholds = [] #TODO:: let user specify these
+    r_logic_gates = []
+    r_activations = []
+    r_thresholds = [] #TODO:: let user specify these, currently these are fold change thresholds
     for act in macchiato_results['logic_gates'].keys():
 
         for lg in macchiato_results['logic_gates'][act]:
-            activations.append(act)
+            r_activations.append(act)
             ''' ---- SET THRESHOLDS HERE-----'''
             if act == 'BP':
-                thresholds.append([1,1])
+                r_thresholds.append([5,5])
             elif act == 'TH':
-                thresholds.append([3,3])
-            logic_gates.append(lg)
+                r_thresholds.append([5,5])
+            r_logic_gates.append(lg)
 
-    receiver_info = {'activations': activations, 'thresholds':thresholds, 'logic_gates': logic_gates}
+    print(r_logic_gates, r_activations, r_thresholds)
 
 
     all_outputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     all_indices = simulator.get_opentron_indices()
 
     pop_size = 10
-    n_gens = 10
+    n_gens = 3
     plot = False
     max_ind = 6
 
@@ -160,7 +160,7 @@ if __name__ == '__main__':
 
     simulated = np.zeros((pop_size)) # keep track of grids that have been simulated so we dont do them again
     scores = np.zeros((pop_size))
-    max_receiver_pos = np.array(np.ones((len(activations), 2 ))*7) #TODO: set this to 0,0 after testing
+    max_receiver_pos = np.array(np.ones((len(r_activations), 2 ))*7) #TODO: set this to 0,0 after testing
 
     for gen in range(n_gens):
 
@@ -172,16 +172,15 @@ if __name__ == '__main__':
         n_cores = int(mp.cpu_count())
         ti = time.time()
 
-
+        print(r_logic_gates)
         pool = Pool(5)
-
         #results = pool.starmap(run_sim, zip(IPTG_inds, repeat(receiver_info)))
-        results = [run_sim(IPTG_inds[i], receiver_info) for i in range(len(IPTG_inds))] # for debugging
+        results = [run_sim(IPTG_inds[i], r_activations, r_logic_gates, r_thresholds) for i in range(len(IPTG_inds))] # for debugging
         pool.close()
         for i, result in enumerate(results):
             score = result['score']
-            best_receiver_pos = result['receiver_pos']
-            coords = result['coords']
+            best_receiver_pos = result['receiver_coords']
+            coords = result['inducer_coords']
             t = result['t']
             scores[i] = score
             if score > max_score:
@@ -226,17 +225,17 @@ if __name__ == '__main__':
 
         print("gen : " + str(gen) + ", av score: ", np.mean(scores), " top score: ", np.max(scores))
         print('IPTG inds:', IPTG_inds[0])
-        print('max receiver ind:', np.array(max_receiver_pos-start_coords)/points_per_well)
+        print('max receiver ind:', np.array(max_receiver_pos-simulator.opentron_origin)/points_per_well)
         print(scores)
 
-    receiver_inds = (np.array(max_receiver_pos-start_coords)/int(points_per_well)).astype(np.int32)
+    receiver_inds = (np.array(max_receiver_pos-simulator.opentron_origin)/int(points_per_well)).astype(np.int32)
     IPTG_inds = np.array(IPTG_inds[0], dtype = np.int32)
     print(max_receiver_pos)
     print(receiver_inds)
     print(IPTG_inds)
 
 
-    save_data = {'receiver_inds': receiver_inds.tolist(), 'IPTG_inds': IPTG_inds.tolist(), 'activations': activations, 'logic_gates': logic_gates, 'thresholds':thresholds, 'score': np.max(scores)}
+    save_data = {'receiver_inds': receiver_inds.tolist(), 'IPTG_inds': IPTG_inds.tolist(), 'activations': r_activations, 'logic_gates': r_logic_gates, 'thresholds':r_thresholds, 'score': np.max(scores)}
 
     json.dump(save_data, open(os.path.join(out_path, 'placement.json'), 'w+'))
 

@@ -786,7 +786,9 @@ def get_colony_gates(best_tables, receivers):
                 logic_gate[input_ind] = 1
                 covered[input_ind] = 1
 
-        colony_gates[receiver] = logic_gate
+        tmp = colony_gates.get(receiver, [])
+        tmp.append(logic_gate)
+        colony_gates[receiver] = tmp
 
     return colony_gates
 

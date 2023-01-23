@@ -126,10 +126,12 @@ class DigitalSimulator():
 
             GFP = all_GFPs[i]
 
+
+
             if logic_gate[i] == 0:
-                logic_area[GFP > inactive_thr] = 0
+                logic_area[GFP/all_GFPs[0] > inactive_thr] = 0
             elif logic_gate[i] == 1:
-                logic_area[GFP < active_thr] = 0
+                logic_area[GFP/all_GFPs[0] < active_thr] = 0
 
         return logic_area
 
@@ -185,7 +187,7 @@ class DigitalSimulator():
         gets the maximum (over each area) of the radius of a circle, centred at an opentron position, that fits within each area
         where the logic gate is encoded
         '''
-        max_r = 0
+
         labels, n = sn.label(logic_area)  # find and label blobs
         best_pos = [0, 0]
         maxmin_r = 0
@@ -212,7 +214,7 @@ class DigitalSimulator():
 
         return maxmin_r, best_pos
 
-    def get_fitness(self, GFPs, receiver_info, inducer_coords):
+    def get_fitness(self, GFPs, r_logic_gate, r_threshold, inducer_coords):
         '''
         default fitness function, overwrite if you want to use another metric e.g. ON OFF ratio. This is supposed to
         match the lab experiments where we have set thresholds for each reciever function. Fitness is scored by the
@@ -224,12 +226,12 @@ class DigitalSimulator():
         :return:
         '''
 
-        logic_area = self.get_logic_area(receiver_info['logic_gates'], GFPs, receiver_info['thresholds'])
+        logic_area = self.get_logic_area(r_logic_gate, GFPs, r_threshold)
         max_r, best_pos = self.get_max_r(logic_area, inducer_coords)
 
         return max_r, best_pos
 
-    def fitness_over_t(self, GFPs, receiver_info, inducer_coords):
+    def fitness_over_t(self, GFPs, r_logic_gate, r_threshold, inducer_coords):
 
         #plt.show()
         n_t = GFPs[0].shape[-1]
@@ -241,25 +243,28 @@ class DigitalSimulator():
         all_receiver_pos = []
 
         for t in all_t:
-            max_r, best_pos = self.get_fitness(GFPs[:,:,t], receiver_info, inducer_coords)
+
+
+            max_r, best_pos = self.get_fitness(GFPs[:,:,:,t], r_logic_gate, r_threshold, inducer_coords)
             all_scores.append(max_r)
             all_receiver_pos.append(best_pos)
 
 
         return all_scores, all_receiver_pos
 
-    def max_fitness_over_t(self, sims, inducer_coords, receiver_info, test_t = False):
+    def max_fitness_over_t(self, sims, inducer_coords, r_logic_gates, r_thresholds, test_t = False):
 
         # each logic gate has a corresponding activation and set of thresholds
 
         all_scores = []
         all_receiver_pos = []
 
-        for receiver_ind in range(len(sims)):
+        for r_ind in range(len(sims)):
             # sims_shape = (n_receivers, n_input_states, n_species, x,y,t)
 
-            GFPs = np.array([sims[receiver_ind][i][self.gfp_index, :,:,:] for i in range(len(sims[0]))])
-            scores, receiver_pos = self.fitness_over_t(GFPs,  receiver_info, inducer_coords)
+            GFPs = np.array([sims[r_ind][i][self.gfp_index, :,:,:] for i in range(len(sims[0]))])
+
+            scores, receiver_pos = self.fitness_over_t(GFPs, r_logic_gates[r_ind], r_thresholds[r_ind], inducer_coords)
 
             all_scores.append(scores)
 
@@ -274,20 +279,20 @@ class DigitalSimulator():
         best_receiver_pos = -1
 
         if not test_t: # search over all t
-            for i in range(len(sims[0,0,0,0,0,:])):
-                scores = all_scores[:,i]
-                receiver_pos = [all_receiver_pos[j][i] for j in range(len(receiver_info['activations']))]
+            for t in range(len(sims[0,0,0,0,0,:])):
+                scores = all_scores[:,t]
+                receiver_pos = [all_receiver_pos[j][t] for j in range(len(sims))]
 
                 min_score = min(scores)
                 if min_score > max_min_score:
                     max_min_score = min_score
-                    best_t = t[i]
+                    best_t = t
                     best_receiver_pos = receiver_pos
         else: # just check at test_t
             #test_t -= 1
 
             scores = all_scores[:, test_t]
-            best_receiver_pos = [all_receiver_pos[j][test_t] for j in range(len(receiver_info['thresholds']))]
+            best_receiver_pos = [all_receiver_pos[j][test_t] for j in range(len(sims))]
             # TODO:: check all recievers are at different positions
             max_min_score = min(scores)
 
