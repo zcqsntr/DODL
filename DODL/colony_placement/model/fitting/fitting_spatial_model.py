@@ -67,6 +67,8 @@ plot_f = 0
 threshold = 0
 bandpass = 1
 
+save_file = '' #vector_objective_par saves to a file, define here
+
 
 '''if 'threshold' will fit threshold gene circuit params. If 'bandpass'
 fit all gene circuit params on the bandpass data'''
@@ -150,7 +152,7 @@ def plot_layout():
     plt.show()
 
 #plot_layout() use this to check the layout
-plt.close('all')
+#plt.close('all')
 
 
 dx = lambda t, y: ff.dgompertz(t,*gompertz_ps)
@@ -269,8 +271,7 @@ def run_all_experiments(params, plot=False):
 
         all_data[conc] = simulated_data
 
-    plt.savefig('characterisation.pdf')
-    plt.show()
+
 
     return all_data
 
@@ -302,13 +303,16 @@ def objective(params):
             #diff = np.log10(lab_data+ -np.min(np.min(lab_data), 0) + 0.00001) - np.log10(sim_data+0.00001)
             diff = lab_data - sim_data
 
+
             #error += np.sum(((diff)/(lab_data+0.00001))**2)/len(sim_data)
             #remove dodgy points for threshold
             if threshold and not bandpass:
                 if not (distance == 4.5 and IPTG_conc == 0.015) and not (distance == 4.5 and IPTG_conc == 0.03) and not (distance == 6.4 and IPTG_conc == 0.03):
                     error += np.sum(np.abs(diff)**2) / len(sim_data)
+            else:
+                error += np.sum(np.abs(diff) ** 2) / len(sim_data)
 
-    #print(error, params)
+
     return error
 
 def vector_objective_par(params, *args):
@@ -320,8 +324,6 @@ def vector_objective_par(params, *args):
     '''
     with Pool(n_cores) as p:
         errors = p.map(objective, params)
-
-
 
     ind = np.argmin(errors)
     min_error = errors[ind]
@@ -350,15 +352,12 @@ def vector_objective(params, *args):
     :return:
     '''
 
-
-
     errors = []
-    #print(params)
-
 
     for i in range(len(params)):
 
         error = objective(params[i])
+        print(error)
 
         if i == 0:
             best_params = params[i]
@@ -369,7 +368,6 @@ def vector_objective(params, *args):
             print()
             print('new best params:', best_params, 'loss', min_error)
             print()
-
 
         errors.append(error)
 
