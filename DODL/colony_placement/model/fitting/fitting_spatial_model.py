@@ -357,7 +357,7 @@ def vector_objective(params, *args):
     for i in range(len(params)):
 
         error = objective(params[i])
-        print(error)
+
 
         if i == 0:
             best_params = params[i]
