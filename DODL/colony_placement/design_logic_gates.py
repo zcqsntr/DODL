@@ -134,7 +134,6 @@ if __name__ == '__main__':
 
     print(r_logic_gates, r_activations, r_thresholds)
 
-
     all_outputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
 
     max_score = 0

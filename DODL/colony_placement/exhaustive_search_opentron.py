@@ -11,10 +11,6 @@ from simulator import DigitalSimulator
 from multiprocessing import Pool
 
 
-
-
-
-
 ## 1536 well plate
 environment_size = (39, 39)
 plate_width = 35

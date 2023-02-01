@@ -480,7 +480,6 @@ def average_over_repeats(data, time_points, IPTG_concs):
     return averaged_data
 
 
-
 if __name__ == '__main__':
 
     TH_file = os.path.join('data', '20220704_data-processed-ZG.csv')
