@@ -202,20 +202,22 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
     return plate
 
 
-def make_plates(all_receiver_coords, receiver_acts, inducer_coords, inducer_conc, environment_size, w, dx, laplace = False, fitting = False):
+def make_plates(all_receiver_coords, receiver_acts, inducer_coords, inducer_conc, environment_size, w, laplace = False, fitting = False):
     plates = []
+    print(laplace)
 
     n_inputs = len(inducer_coords)
 
     all_inputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
     for i, rc in enumerate(all_receiver_coords):
+        print('mp:', i)
         r_plates = []
         activation = receiver_acts[i]
         params, gompertz_ps = get_fitted_params(activation)
         dx = lambda t, y: dgompertz(t, *gompertz_ps)
 
-        for i in range(2 ** n_inputs):
-            plate = make_plate(rc, inducer_coords[all_inputs[i] == 1], params, inducer_conc,
+        for j in range(2 ** n_inputs):
+            plate = make_plate(rc, inducer_coords[all_inputs[j] == 1], params, inducer_conc,
                                   environment_size, w, dx, laplace = laplace, bandpass=activation=='BP', fitting = fitting)
 
             r_plates.append(plate)

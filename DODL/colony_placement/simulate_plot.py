@@ -60,7 +60,7 @@ def normalise_GFP(all_sims):
 
             for t in range(GFP.shape[2]):
                 receiver_GFP = GFP[:, :, t]
-                r_c = simulator.get_colony_coords(receiver_inds[i], receiver_radius)[0]
+                r_c = receiver_coords[i]
                 # take middle 50% of pixels
                 pixels = np.sort(receiver_GFP[np.min(r_c[:, 0]): np.max(r_c[:, 0]) + 1, np.min(r_c[:, 1]): np.max(r_c[:, 1]) + 1]
                                                     .flatten())
@@ -69,8 +69,6 @@ def normalise_GFP(all_sims):
                 r = math.ceil(len(pixels) * 0.75)
               
                 t_series.append(np.mean(pixels[l:r]))
-
-
 
             processed_GFPs.append(t_series)
 
@@ -155,6 +153,27 @@ def plot_barchart(all_processed_GFPs):
         # plt.legend()
         plt.savefig(os.path.join(outpath, 'fold_change_' + str(i) + '.png'), dpi=300)
 
+
+def plot_grid_layout():
+
+    plt.figure()
+    # plot the inducer and receiver locations
+    grid = np.zeros(environment_size)
+
+    grid[np.where(bound == -1)] = -1
+
+    for i, coord in enumerate(inducer_coords):
+        grid[coord[0], coord[1]] = i + 1
+
+    for j, rc in enumerate(receiver_coords):
+        grid[rc[:, 0], rc[:, 1]] = i + j + 2
+    im = plt.imshow(grid)
+    plt.colorbar(im)
+
+
+    plt.savefig(os.path.join(outpath, 'simulation_grid.png'), dpi=300)
+
+
 if __name__ == '__main__':
 
 
@@ -194,11 +213,14 @@ if __name__ == '__main__':
     def laplace(x):
         return np.matmul(A, x.flatten()).reshape(x.shape)
 
-    simulator = DigitalSimulator(conc, environment_size, w, dt, laplace=laplace)
+    simulator = DigitalSimulator(conc, environment_size, w, dt)
     simulator.bound = bound
 
-    receiver_coords = simulator.get_colony_coords(receiver_inds)
+
+
+    receiver_coords = [simulator.get_colony_coords(rc) for rc in receiver_inds]
     inducer_coords = simulator.opentron_to_coords(IPTG_inds)
+
 
     # make a plate for every reciever-input combination, need different plates for each receiver for lawn simulations
     plates = ff.make_plates(receiver_coords, activations, inducer_coords, conc, environment_size, w, laplace)
@@ -215,15 +237,28 @@ if __name__ == '__main__':
     colours = ['purple', 'green', 'red', 'steelblue', 'orange', 'blue', 'black', 'yellow']
 
     bar_chart_t = 20  # hours
+
+    print(np.array(all_sims).shape)
     
     all_processed_GFPs = normalise_GFP(all_sims)
+    print(np.array(all_processed_GFPs).shape)
+
 
     plot_timecourses(all_processed_GFPs)
 
     plot_barchart(all_processed_GFPs)
 
+    plot_grid_layout()
+
     save_GFP_images(all_sims)
 
-    #plt.show()
+
+    '''
+    plt.close('all')
+    plt.figure()
+    plt.imshow(np.array(all_sims[0])[ -1, 1, :, :, -1])
+
+    plt.show()
+    '''
 
 

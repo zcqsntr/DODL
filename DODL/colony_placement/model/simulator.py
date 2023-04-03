@@ -60,31 +60,10 @@ class DigitalSimulator():
         pos = colony_centre_coords * self.w
 
 
-        colony_coords = [
-            get_node_coordinates(pos, colony_radius, self.environment_size[0], self.environment_size[1], self.w)]
+        colony_coords = get_node_coordinates(pos, colony_radius, self.environment_size[0], self.environment_size[1], self.w)
 
         return colony_coords
 
-    def plot_grid_layout(self):
-        # todo: implement this
-        '''
-        # plot the inducer and receiver locations
-        grid = np.zeros(environment_size)
-
-        grid[np.where(bound == -1)] = -1
-
-        for i, coord in enumerate(inducer_coords):
-            grid[coord[0], coord[1]] = i + 1
-
-        for j, rc in enumerate(receiver_coords):
-            grid[rc[:, 0], rc[:, 1]] = i + j + 2
-        sys.exit()
-        im = plt.imshow(grid)
-        plt.colorbar(im)
-
-
-        plt.savefig(os.path.join(outpath, 'simulation_grid.png'), dpi=300)
-        '''
 
     def run_sims(self, plates, t_final = 20*60):
         '''
@@ -99,8 +78,9 @@ class DigitalSimulator():
         for receiver in range(len(plates)):
 
             r_sims = []
+            params = ff.get_fitted_params(opt='TH')[0]
             for input_state in range(len(plates[receiver])):
-                sim = plates[receiver][input_state].run(t_final=t_final, dt=self.dt, params=())
+                sim = plates[receiver][input_state].run(t_final=t_final, dt=self.dt, params=params)
 
                 r_sims.append(sim)
 
