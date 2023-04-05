@@ -78,9 +78,9 @@ class DigitalSimulator():
         for receiver in range(len(plates)):
 
             r_sims = []
-            params = ff.get_fitted_params(opt='TH')[0]
+
             for input_state in range(len(plates[receiver])):
-                sim = plates[receiver][input_state].run(t_final=t_final, dt=self.dt, params=params)
+                sim = plates[receiver][input_state].run(t_final=t_final, dt=self.dt, params=())
 
                 r_sims.append(sim)
 

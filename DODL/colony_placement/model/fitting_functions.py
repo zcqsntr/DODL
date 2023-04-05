@@ -95,6 +95,8 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
     alpha_R, beta_R, K_IR, n_IR, K_lacR, R_0, \
     alpha_G, beta_G, n_A, K_A, n_R, K_R, X_0, G_s = params
 
+
+
     ## Create our environment
     plate = Plate(environment_size)
 
@@ -204,15 +206,15 @@ def make_plate(receiver_coords, inducer_coords, params, inducer_conc, environmen
 
 def make_plates(all_receiver_coords, receiver_acts, inducer_coords, inducer_conc, environment_size, w, laplace = False, fitting = False):
     plates = []
-    print(laplace)
 
     n_inputs = len(inducer_coords)
 
     all_inputs = list(map(np.array, list(itertools.product([0, 1], repeat=n_inputs))))
     for i, rc in enumerate(all_receiver_coords):
-        print('mp:', i)
+
         r_plates = []
         activation = receiver_acts[i]
+
         params, gompertz_ps = get_fitted_params(activation)
         dx = lambda t, y: dgompertz(t, *gompertz_ps)
 
@@ -313,7 +315,7 @@ def get_fitted_params(opt):
     1.94664816e+01,
     6.81117529e-01]
 
-    if opt == 'bandpass' or 'BP':
+    if opt in ['bandpass', 'BP']:
         # min:  1.1516729125694962 BP all params after second evolution with new characterisation
         BP_params = [4.35462879e-02, 4.88625617e+04, 1.83905487e-05, 3.95081261e-05,
          4.47402392e-01, 1.24947521e+04, 1.10207308e-05, 1.40349891e+01,
@@ -326,14 +328,11 @@ def get_fitted_params(opt):
         params[-1] = BP_params[11]
 
 
-
-
     params[-14:-8] = BP_params[-8:-2]
     params[-4:-2] = BP_params[-2:]
     params[-2] = X_0
 
-
-
     return params, gompertz_ps
+
 
 

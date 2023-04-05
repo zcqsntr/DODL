@@ -176,7 +176,6 @@ def plot_grid_layout():
 
 if __name__ == '__main__':
 
-
     args = parser.parse_args()
 
     in_file = args.in_file
@@ -238,11 +237,7 @@ if __name__ == '__main__':
 
     bar_chart_t = 20  # hours
 
-    print(np.array(all_sims).shape)
-    
     all_processed_GFPs = normalise_GFP(all_sims)
-    print(np.array(all_processed_GFPs).shape)
-
 
     plot_timecourses(all_processed_GFPs)
 
@@ -251,7 +246,6 @@ if __name__ == '__main__':
     plot_grid_layout()
 
     save_GFP_images(all_sims)
-
 
     '''
     plt.close('all')
