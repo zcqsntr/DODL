@@ -87,7 +87,19 @@ def pipette(dest_plates, liquid_type, liquid_source, pip, waste_plate, waste_cou
 
 def run(protocol):
 
-    destination_plates = json.load(open(os.path.join('output/plate_config.json')))
+    # destination_plates = json.load(open(os.path.join('output/plate_config.json')))
+    destination_plates = [{"set": 0, "position": "2", "BP": ["L22", "D4", "D13", "D22", "M4", "M13"], "TH": ["N21"], "IPTG": ["E5", "C12", "C21", "E23", "L5", "L12"]},
+                          {"set": 0, "position": "3", "BP": ["L22", "D4", "D13", "D22", "M4", "M13"], "TH": ["N21"], "IPTG": ["E3", "E5", "C12", "C21", "E23", "N3", "L3", "N12", "L12", "L14"]},
+                          {"set": 0, "position": "5", "BP": ["L22"], "TH": ["N21", "D4", "D13", "D22", "M4", "M13"], "IPTG": ["E4", "C13", "C22", "E22", "K2", "M14"]},
+                          {"set": 0, "position": "6", "BP": ["L22"], "TH": ["N21", "D4", "D13", "D22", "M4", "M13"], "IPTG": ["D5", "F2", "B11", "B20", "F20", "O2", "M5", "O11", "M14", "K11"]},
+                          {"set": 1, "position": "2", "BP": ["L22"], "TH": ["N21", "D4", "D13", "D22", "M4", "M13"], "IPTG": ["F6", "B11", "B20", "F24", "L4", "M12"]},
+                          {"set": 1, "position": "3", "BP": ["L22"], "TH": ["N21", "D4", "D13", "D22", "M4", "M13"], "IPTG": ["D3", "E4", "C13", "C22", "E22", "N4", "M3", "N13", "M12", "L13"]},
+                          {"set": 1, "position": "5", "BP": ["L22", "D4", "D13", "D22"], "TH": ["N21", "M4", "M13"], "IPTG": ["F4", "B13", "B22", "F22", "K6", "K11"]},
+                          {"set": 1, "position": "6", "BP": ["L22"], "TH": ["N21", "D4", "D13", "D22", "M4", "M13"], "IPTG": ["F2", "F6", "B11", "B20", "F24", "O2", "K2", "O11", "K11", "K15"]},
+                          {"set": 2, "position": "2", "BP": ["L22", "D4", "D13", "D22", "N4", "N13"], "TH": ["N21", "L2", "L11"], "IPTG": ["F5", "B12", "B21", "F23", "K5", "O12"]},
+                          {"set": 2, "position": "3", "BP": ["L22", "C4", "C13", "C22", "N4", "N13"], "TH": ["N21", "E2", "E11", "E20", "L2", "L11"], "IPTG": ["B3", "F5", "D14", "D23", "F23", "M5", "O3", "M14", "O12", "K14"]},
+                          {"set": 2, "position": "5", "BP": ["L22", "D4", "D13", "D22", "L5", "L14"], "TH": ["N21", "O3", "O12"], "IPTG": ["E4", "C13", "C22", "E22", "M5", "M10"]},
+                          {"set": 2, "position": "6", "BP": ["L22", "E5", "E14", "E23", "L5", "L14"], "TH": ["N21", "B3", "B12", "B21", "O3", "O12"], "IPTG": ["D1", "D5", "F15", "F24", "D23", "K6", "M1", "K15", "M10", "M14"]}]
     deep96 = protocol.load_labware('nest_96_wellplate_2ml_deep', '4')
     waste_agar = protocol.load_labware('corning_384_wellplate_112ul_flat', '8')
     tip10 = protocol.load_labware('opentrons_96_filtertiprack_10ul', '1')

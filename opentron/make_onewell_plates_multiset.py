@@ -8,12 +8,11 @@ import numpy as np
 import itertools
 import math
 from PIL import Image, ImageDraw
-from copy import deepcopy
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
-def get_logic_combinations(json_data, n_replicates):
+def get_logic_combinations(json_data):
     '''
     converts the configuration specified by the coords and activations and creates a list of wells of a 6 well plate where each well will implement each input state
 
@@ -43,9 +42,6 @@ def get_logic_combinations(json_data, n_replicates):
 
             well = {'gate': json_gate['logic_gate'], 'BP': bp.__copy__(), 'TH': th.__copy__(), 'IPTG': ics.__copy__()}
             all_combinations.append(well)
-
-    # repeat the combinations n_replicates times
-    all_combinations = all_combinations * n_replicates
     return all_combinations
 
 
@@ -69,9 +65,9 @@ def get_plates(positions):
     :return:
     '''
 
-    wells_per_plate = 5  # leave final well for blanks
+    wells_per_plate = 2  # leave final well for blanks
     plates = []
-    ot_plate_positions = ['2', '3', '5', '6', '8', '9', '11']
+    ot_plate_positions = ['2', '3', '5', '6']
 
     n_wells = len(positions)
     n_plates_total = math.ceil(n_wells / wells_per_plate)
@@ -82,35 +78,30 @@ def get_plates(positions):
         n_plates = min(n_ot_positions, n_plates_total - n_ot_positions * plate_set)
 
         for p in range(n_plates):
-            bandpass_wells = ['L22']
-            # threshold_wells = ['N21']
-            threshold_wells = []
+            bandpass_wells = ['B11', 'B23', 'O2', 'N14']
+            threshold_wells = ['B2', 'C14', 'O11', 'O23']
             IPTG_wells = []
             first_well = plate_set * n_ot_positions * wells_per_plate + p * wells_per_plate
             last_well = first_well + wells_per_plate
-            pos_copy = deepcopy(positions)
-            wells_for_plate = pos_copy[first_well:min(last_well, n_wells)]
+            wells_for_plate = positions[first_well:min(last_well, n_wells)]
 
-            plate_logics = []
             for w, well in enumerate(wells_for_plate):
-                plate_logics.append(well['gate'])
                 # converted well position is given by:
                 #   col = col + 9 * (six_well_col - 1)
                 #   if six_well_row == 2:
                 #       row = 17 - row
-                six_well_row = (w // 3) + 1
-                six_well_col = (w % 3) + 1
+                one_well_col = (w % 2) + 1
+                one_well_row = 1
 
-                well['six_well_coord'] = [six_well_row, six_well_col]
+                well['one_well_coord'] = [1, one_well_col]
                 well['plate'] = p+1
 
                 well_types = ['BP', 'TH', 'IPTG']
                 for wtype in well_types:
                     if well[wtype].size > 1:   #TODO: for some reason empty well are given a size == 1
                         for bp_well in well[wtype]:
-                            bp_well[1] = bp_well[1] + 9 * (six_well_col - 1)
-                            if six_well_row == 2:
-                                bp_well[0] = 17 - bp_well[0]
+                            bp_well[1] = bp_well[1] + 2 + 14 * (one_well_col - 1)
+                            bp_well[0] = bp_well[0] + 4
 
                             ot_well = coord_to_well(bp_well)
                             if wtype == 'BP':
@@ -120,8 +111,7 @@ def get_plates(positions):
                             elif wtype == 'IPTG':
                                 IPTG_wells.append(ot_well)
 
-            plate = {'set': plate_set, 'plate_num': p+1, 'logic_gates': plate_logics, 'position': ot_plate_positions[p],
-                     'BP': bandpass_wells, 'TH': threshold_wells, 'IPTG': IPTG_wells}
+            plate = {'set': plate_set, 'position': ot_plate_positions[p], 'BP': bandpass_wells, 'TH': threshold_wells, 'IPTG': IPTG_wells}
 
             plates.append(plate)
     return plates
@@ -143,15 +133,15 @@ def draw_blank_plate(scale):
                 draw.text(((x + 0.5) * scale, (y + 1.25) * scale), chr(ord('@') + y + 1), fill='black')
             draw.rectangle((((x + 1) * scale + scale/10, (y + 1) * scale + scale/10), ((x + 2) * scale -scale/10, (y + 2) * scale -scale/10)),
                            fill=(255, 255, 255), outline=(0, 0, 0) , width=1)
-    # draw the circles on
-
-    circle_diam = scale * 7.77777
-    for x in range(3):
-        for y in range(2):
-            start = (scale*0.35 + (circle_diam + scale)*x, scale + (circle_diam + 0.5*scale)*y)
-            end = (start[0] + circle_diam, start[1] + circle_diam)
-
-            draw.arc((start, end), start=0, end=360, fill=(0,0,0))
+    # # draw the circles on
+    #
+    # circle_diam = scale * 7.77777
+    # for x in range(3):
+    #     for y in range(2):
+    #         start = (scale*0.35 + (circle_diam + scale)*x, scale + (circle_diam + 0.5*scale)*y)
+    #         end = (start[0] + circle_diam, start[1] + circle_diam)
+    #
+    #         draw.arc((start, end), start=0, end=360, fill=(0,0,0))
 
     return im
 
@@ -185,7 +175,6 @@ parser.add_argument('--plot', type=str, help='1 to plot dest_plates, 0 to not')
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    n_replicates = 3
 
     in_file = args.in_file
     out_file = args.out_file
@@ -200,7 +189,7 @@ if __name__ == '__main__':
 
     data = json.load(open(in_file))
 
-    combinations = get_logic_combinations(data, n_replicates)
+    combinations = get_logic_combinations(data)
     print(combinations)
     plates = get_plates(combinations)
 
